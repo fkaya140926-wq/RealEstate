@@ -34,7 +34,7 @@ SECRET_KEY = 'django-insecure-j56-j!4t$#1&0s30*yrg7$uz@4s^glw4%u20r2bb9$h_!bd@k9
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['realestate-gl6k.onrender.com', '.onrender.com', 'localhost', '127.0.0.1']
 
 GROQ_API_KEY = "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"
 
