@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block page_title %}Homeland — Find Your Next Home{% endblock %}</title>
+    <meta name="description" content="{% block page_description %}Browse thousands of verified property listings for sale and rent. Search apartments, houses, and off-plan projects with AI-powered tools to help you find the right home.{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}Homeland — Find Your Next Home{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Browse thousands of verified property listings for sale and rent.{% endblock %}">
+    <meta property="og:type" content="website">
+    {% block og_extra %}{% endblock %}
+    <link rel="canonical" href="{% block canonical_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --bs-primary: #2563eb;
+            --bs-primary-rgb: 37, 99, 235;
+        }
+
+        body {
+            background-color: #f8f9fb;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: #111827 !important;
+        }
+
+        .navbar-brand span {
+            color: var(--bs-primary);
+        }
+
+        .nav-link {
+            font-weight: 500;
+            color: #374151 !important;
+        }
+
+        .nav-link:hover {
+            color: var(--bs-primary) !important;
+        }
+
+        .btn-primary {
+            background-color: var(--bs-primary);
+            border-color: var(--bs-primary);
+        }
+
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+            border-color: #1d4ed8;
+        }
+
+        .page-container {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 2rem 1rem 4rem;
+        }
+
+        /* --- Icon cluster (messages / notifications / profile) --- */
+        .nav-icon-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #4b5563;
+            font-size: 1.05rem;
+            background: transparent;
+            border: none;
+            position: relative;
+        }
+
+        .nav-icon-btn:hover {
+            background: #f1f3f5;
+            color: #111827;
+        }
+
+        .nav-icon-btn .badge-dot {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            border: 2px solid #fff;
+            display: none;
+        }
+
+        .navbar-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: conic-gradient(from 200deg, #020617, #1e3a8a, #3b82f6, #0ea5e9, #020617);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: none;
+        }
+
+        .dropdown {
+            position: relative;
+        }
+
+        .dropdown::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 100%;
+            height: 10px;
+        }
+        .dropdown-menu {
+            display: block;
+            opacity: 0;
+            transform: translateY(-8px) scale(0.97);
+            transform-origin: top right;
+            pointer-events: none;
+            transition: opacity 0.16s ease, transform 0.16s ease;
+        }
+
+        .dropdown-menu.show,
+        .dropdown:hover .dropdown-menu {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        /* dropdown panels */
+        .nav-dropdown-panel,
+        .profile-panel {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            left: auto;
+        }
+
+        .nav-dropdown-panel {
+            width: 360px;
+            padding: 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            box-shadow: 0 12px 32px rgba(17, 24, 39, 0.12);
+            margin-top: 0;
+        }
+
+        .nav-dropdown-panel .panel-header {
+            padding: 0.9rem 1.1rem;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #f0f1f3;
+        }
+
+        .nav-dropdown-panel .panel-actions {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.7rem 1.1rem;
+            border-bottom: 1px solid #f0f1f3;
+            font-size: 0.85rem;
+        }
+
+        .nav-dropdown-panel .panel-actions a {
+            color: var(--bs-primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .nav-dropdown-panel .panel-empty {
+            padding: 2.2rem 1.1rem;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 0.88rem;
+        }
+
+        .notif-panel-delete-btn {
+            border: none;
+            background: transparent;
+            color: #9ca3af;
+            font-size: 0.75rem;
+            padding: 0.2rem 0.3rem;
+            flex-shrink: 0;
+            align-self: center;
+        }
+        .notif-panel-delete-btn:hover {
+            color: #dc2626;
+        }
+
+        .profile-panel {
+            width: 300px;
+            padding: 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            box-shadow: 0 12px 32px rgba(17, 24, 39, 0.12);
+            margin-top: 0;
+        }
+
+        .profile-panel .profile-head {
+            text-align: center;
+            padding: 1.4rem 1rem 1rem;
+        }
+
+        .profile-panel .profile-avatar-lg {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: conic-gradient(from 200deg, #020617, #1e3a8a, #3b82f6, #0ea5e9, #020617);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.4rem;
+            margin: 0 auto 0.6rem;
+        }
+
+        .profile-panel .profile-name {
+            font-weight: 700;
+            font-size: 0.98rem;
+        }
+
+        .profile-panel .profile-email {
+            color: #9ca3af;
+            font-size: 0.82rem;
+        }
+
+        .profile-panel .profile-links {
+            padding: 0.5rem 0;
+            border-top: 1px solid #f0f1f3;
+        }
+
+        .profile-panel .profile-links a,
+        .profile-panel .profile-links button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 0.6rem 1.1rem;
+            font-size: 0.88rem;
+            color: #374151;
+            text-decoration: none;
+            background: none;
+            border: none;
+        }
+
+        .profile-panel .profile-links a:hover,
+        .profile-panel .profile-links button:hover {
+            background: #f8f9fb;
+            color: #111827;
+        }
+
+        .profile-panel .profile-links form {
+            margin: 0;
+        }
+
+        .settings-toggle {
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .settings-chevron {
+            font-size: 0.75rem;
+            transition: transform 0.2s ease;
+        }
+
+        .settings-chevron.rotated {
+            transform: rotate(90deg);
+        }
+
+        .settings-submenu {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease;
+        }
+
+        .settings-submenu.open {
+            max-height: 160px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container" style="max-width: 1080px;">
+            <a class="navbar-brand" href="{% url 'main:homepage' %}">Home<span>land</span></a>
+            <div class="d-flex align-items-center gap-2 ms-auto">
+                <a class="nav-link" href="{% url 'main:listing_list' %}">Listings</a>
+
+                {% if user.is_authenticated %}
+                    <a class="btn btn-primary btn-sm rounded-pill px-3 me-2" href="{% url 'main:create_listing' %}">List a property</a>
+
+                    <!-- Messages -->
+                    <div class="dropdown">
+                        <a href="{% url 'main:inbox' %}" class="nav-icon-btn text-decoration-none">
+                            <i class="bi bi-envelope"></i>
+                            <span class="badge-dot" {% if navbar_unread_count %}style="display:block;"{% endif %}></span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end nav-dropdown-panel p-0" id="messagesPanelContent">
+                            <div class="panel-header">Messages</div>
+                            {% if navbar_conversations %}
+                                {% for item in navbar_conversations %}
+                                    <a href="{% url 'main:conversation_detail' pk=item.pk %}" class="msg-panel-item d-flex align-items-center gap-2 px-3 py-2 text-decoration-none" style="border-bottom:1px solid #f5f6f8;">
+                                        <div class="navbar-avatar" style="width:34px;height:34px;font-size:0.8rem;">{{ item.other_user.username|first|upper }}</div>
+                                        <div class="flex-grow-1 overflow-hidden">
+                                            <div class="fw-semibold small text-dark">{{ item.other_user.username }}</div>
+                                            <div class="text-muted small text-truncate" style="max-width:220px;">
+                                                {% if item.last_message %}{{ item.last_message.body }}{% else %}No messages yet{% endif %}
+                                            </div>
+                                        </div>
+                                    </a>
+                                {% endfor %}
+                                <a href="{% url 'main:inbox' %}" class="msg-panel-viewall d-block text-center py-2 small fw-semibold text-decoration-none" style="color: var(--bs-primary);">View all messages</a>
+                            {% else %}
+                                <div class="panel-empty">
+                                    <i class="bi bi-envelope-open fs-4 d-block mb-2"></i>
+                                    No messages yet.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Notifications -->
+                    <div class="dropdown">
+                        <button class="nav-icon-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" style="border:none;">
+                            <i class="bi bi-bell"></i>
+                            <span class="badge-dot" {% if navbar_unread_notifications_count %}style="display:block;"{% endif %}></span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end nav-dropdown-panel p-0">
+                            <div class="panel-header">Notifications</div>
+                            {% if navbar_notifications %}
+                                <div class="panel-actions">
+                                    <a href="#" id="markAllReadBtn">Mark all as read</a>
+                                    <a href="#" id="clearAllNotifsBtn" class="text-danger">Clear all</a>
+                                </div>
+                            {% endif %}
+                            <div id="notificationPanelContent">
+                                {% if navbar_notifications %}
+                                    {% for n in navbar_notifications %}
+                                        <div class="notif-panel-item d-flex align-items-start gap-2 px-3 py-2 {% if not n.is_read %}bg-light{% endif %}" style="border-bottom:1px solid #f5f6f8;" data-notif-id="{{ n.pk }}">
+                                            <a href="{% url 'main:read_notification' pk=n.pk %}" class="d-flex align-items-start gap-2 text-decoration-none flex-grow-1">
+                                                <i class="bi bi-{% if not n.is_read %}dot text-primary{% else %}circle text-white{% endif %}" style="font-size:1.2rem; line-height:1;"></i>
+                                                <div class="flex-grow-1">
+                                                    <div class="small text-dark">{{ n.text }}</div>
+                                                    <div class="text-muted" style="font-size:0.72rem;">{{ n.created_at|timesince }} ago</div>
+                                                </div>
+                                            </a>
+                                            <button type="button" class="notif-panel-delete-btn" data-notif-id="{{ n.pk }}" title="Delete">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="panel-empty">
+                                        <i class="bi bi-bell-slash fs-4 d-block mb-2"></i>
+                                        You have no new notifications.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Profile -->
+                    <div class="dropdown">
+                        <button class="navbar-avatar dropdown-toggle" style="list-style:none; padding:0; overflow:hidden;" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                            {% if user.profile.avatar %}
+                                <img src="{{ user.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                            {% else %}
+                                {{ user.username|first|upper }}
+                            {% endif %}
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end profile-panel p-0">
+                            <div class="profile-head">
+                                <div class="profile-avatar-lg" style="overflow:hidden;">
+                                    {% if user.profile.avatar %}
+                                        <img src="{{ user.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                                    {% else %}
+                                        {{ user.username|first|upper }}
+                                    {% endif %}
+                                </div>
+                                <div class="profile-name">{{ user.username }}</div>
+                                <div class="profile-email">{{ user.email }}</div>
+                            </div>
+                            <div class="profile-links">
+                                <a href="{% url 'main:create_listing' %}"><i class="bi bi-plus-circle me-2"></i>List a property</a>
+                                <a href="{% url 'main:dashboard' %}"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
+                                <a href="{% url 'main:settings_page' %}"><i class="bi bi-gear me-2"></i>Settings</a>
+                                <form action="{% url 'main:logout' %}" method="post">
+                                    {% csrf_token %}
+                                    <button type="submit"><i class="bi bi-box-arrow-right me-2"></i>Log out</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <a class="nav-link" href="{% url 'main:login' %}">Log in</a>
+                    <a class="btn btn-primary btn-sm rounded-pill px-3" href="{% url 'main:register' %}">Sign up</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        {% include 'main/includes/messages.html' %}
+
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>    <script>
+        function toggleSettingsMenu(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById('settingsSubmenu').classList.toggle('open');
+            document.getElementById('settingsChevron').classList.toggle('rotated');
+        }
+
+        {% if user.is_authenticated %}
+        (function () {
+            const bellIcon = document.querySelector('.bi-bell');
+            const bellBadge = bellIcon ? bellIcon.parentElement.querySelector('.badge-dot') : null;
+            const bellWrapper = bellIcon ? bellIcon.closest('.dropdown') : null;
+            const envelopeIcon = document.querySelector('.bi-envelope');
+            const envelopeBadge = envelopeIcon ? envelopeIcon.parentElement.querySelector('.badge-dot') : null;
+            const envelopeWrapper = envelopeIcon ? envelopeIcon.closest('.dropdown') : null;
+
+            let isHoveringMessages = false;
+            if (envelopeWrapper) {
+                envelopeWrapper.addEventListener('mouseenter', function () { isHoveringMessages = true; });
+                envelopeWrapper.addEventListener('mouseleave', function () { isHoveringMessages = false; });
+            }
+
+            let isHoveringNotifs = false;
+            if (bellWrapper) {
+                bellWrapper.addEventListener('mouseenter', function () { isHoveringNotifs = true; });
+                bellWrapper.addEventListener('mouseleave', function () { isHoveringNotifs = false; });
+            }
+
+            function renderMessagesPanel(conversations) {
+                const panelContent = document.getElementById('messagesPanelContent');
+                if (!panelContent) return;
+
+                if (!conversations.length) {
+                    panelContent.innerHTML = '<div class="panel-header">Messages</div><div class="panel-empty"><i class="bi bi-envelope-open fs-4 d-block mb-2"></i>No messages yet.</div>';
+                    return;
+                }
+
+                let html = '<div class="panel-header">Messages</div>';
+                conversations.forEach(function () {
+                    html += '<a href="#" class="msg-panel-item d-flex align-items-center gap-2 px-3 py-2 text-decoration-none" style="border-bottom:1px solid #f5f6f8;">' +
+                        '<div class="navbar-avatar" style="width:34px;height:34px;font-size:0.8rem;"></div>' +
+                        '<div class="flex-grow-1 overflow-hidden">' +
+                            '<div class="fw-semibold small text-dark"></div>' +
+                            '<div class="text-muted small text-truncate" style="max-width:220px;"></div>' +
+                        '</div>' +
+                    '</a>';
+                });
+                html += '<a href="{% url "main:inbox" %}" class="msg-panel-viewall d-block text-center py-2 small fw-semibold text-decoration-none" style="color: var(--bs-primary);">View all messages</a>';
+                panelContent.innerHTML = html;
+
+                const items = panelContent.querySelectorAll('.msg-panel-item');
+                conversations.forEach(function (c, i) {
+                    items[i].setAttribute('href', '/inbox/' + c.pk + '/');
+                    items[i].querySelector('.navbar-avatar').textContent = c.avatar_letter;
+                    items[i].querySelector('.fw-semibold').textContent = c.other_user;
+                    items[i].querySelector('.text-muted').textContent = c.last_message || 'No messages yet';
+                });
+            }
+
+            function bindNotifActionListeners() {
+                const markBtn = document.getElementById('markAllReadBtn');
+                const clearBtn = document.getElementById('clearAllNotifsBtn');
+                if (markBtn) markBtn.addEventListener('click', onMarkAllReadClick);
+                if (clearBtn) clearBtn.addEventListener('click', onClearAllNotifsClick);
+            }
+
+            function renderNotificationsPanel(notifications) {
+                const panelContent = document.getElementById('notificationPanelContent');
+                if (!panelContent) return;
+                const panelWrapper = panelContent.closest('.nav-dropdown-panel');
+
+                if (!notifications.length) {
+                    panelContent.innerHTML = '<div class="panel-empty"><i class="bi bi-bell-slash fs-4 d-block mb-2"></i>You have no new notifications.</div>';
+                    const actionsRow = panelWrapper ? panelWrapper.querySelector('.panel-actions') : null;
+                    if (actionsRow) actionsRow.remove();
+                    return;
+                }
+
+                if (panelWrapper && !panelWrapper.querySelector('.panel-actions')) {
+                    const header = panelWrapper.querySelector('.panel-header');
+                    if (header) {
+                        header.insertAdjacentHTML('afterend', '<div class="panel-actions"><a href="#" id="markAllReadBtn">Mark all as read</a><a href="#" id="clearAllNotifsBtn" class="text-danger">Clear all</a></div>');
+                        bindNotifActionListeners();
+                    }
+                }
+
+                let html = '';
+                notifications.forEach(function (n) {
+                    html += '<div class="notif-panel-item d-flex align-items-start gap-2 px-3 py-2 bg-light" style="border-bottom:1px solid #f5f6f8;" data-notif-id="' + n.id + '">' +
+                        '<a href="/notifications/' + n.id + '/read/" class="d-flex align-items-start gap-2 text-decoration-none flex-grow-1">' +
+                            '<i class="bi bi-dot text-primary" style="font-size:1.2rem; line-height:1;"></i>' +
+                            '<div class="flex-grow-1">' +
+                                '<div class="small text-dark"></div>' +
+                                '<div class="text-muted" style="font-size:0.72rem;"></div>' +
+                            '</div>' +
+                        '</a>' +
+                        '<button type="button" class="notif-panel-delete-btn" data-notif-id="' + n.id + '" title="Delete"><i class="bi bi-x-lg"></i></button>' +
+                    '</div>';
+                });
+                panelContent.innerHTML = html;
+
+                const items = panelContent.querySelectorAll('.notif-panel-item');
+                notifications.forEach(function (n, i) {
+                    items[i].querySelector('.small.text-dark').textContent = n.text;
+                    items[i].querySelector('.text-muted').textContent = n.timesince;
+                });
+            }
+
+            function checkNotifications() {
+                fetch("{% url 'main:notifications_check' %}", { cache: "no-store" })
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        if (bellBadge) bellBadge.style.display = data.count > 0 ? "block" : "none";
+                        if (envelopeBadge) envelopeBadge.style.display = data.message_count > 0 ? "block" : "none";
+                        if (!isHoveringMessages) {
+                            renderMessagesPanel(data.conversations || []);
+                        }
+                        if (!isHoveringNotifs) {
+                            renderNotificationsPanel(data.notifications || []);
+                        }
+                    });
+            }
+
+            setInterval(checkNotifications, 5000);
+
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+            }
+
+            const notifPanelContent = document.getElementById('notificationPanelContent');
+
+            function showEmptyNotifState() {
+                notifPanelContent.innerHTML = '<div class="panel-empty"><i class="bi bi-bell-slash fs-4 d-block mb-2"></i>You have no new notifications.</div>';
+                const panelWrapper = notifPanelContent.closest('.nav-dropdown-panel');
+                const actionsRow = panelWrapper ? panelWrapper.querySelector('.panel-actions') : null;
+                if (actionsRow) actionsRow.remove();
+                if (bellBadge) bellBadge.style.display = 'none';
+            }
+
+            if (notifPanelContent) {
+                notifPanelContent.addEventListener('click', function (e) {
+                    const delBtn = e.target.closest('.notif-panel-delete-btn');
+                    if (!delBtn) return;
+                    e.preventDefault();
+                    const id = delBtn.dataset.notifId;
+                    fetch('/notifications/' + id + '/delete/', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    }).then(function (res) {
+                        if (!res.ok) return;
+                        const item = notifPanelContent.querySelector('[data-notif-id="' + id + '"]');
+                        if (item) item.remove();
+                        if (!notifPanelContent.querySelector('.notif-panel-item')) {
+                            showEmptyNotifState();
+                        }
+                    });
+                });
+            }
+
+            function onMarkAllReadClick(e) {
+                e.preventDefault();
+                fetch("{% url 'main:mark_all_notifications_read' %}", {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                }).then(function () {
+                    notifPanelContent.querySelectorAll('.notif-panel-item').forEach(function (item) {
+                        item.classList.remove('bg-light');
+                    });
+                    if (bellBadge) bellBadge.style.display = 'none';
+                });
+            }
+
+            function onClearAllNotifsClick(e) {
+                e.preventDefault();
+                fetch("{% url 'main:clear_notifications' %}", {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                }).then(function () {
+                    showEmptyNotifState();
+                });
+            }
+
+            bindNotifActionListeners();
+        })();
+        {% endif %}
+    </script>
+</body>
+</html>

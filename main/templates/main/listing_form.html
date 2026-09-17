@@ -1,0 +1,412 @@
+{% extends "main/header.html" %}
+{% load crispy_forms_tags %}
+{% block content %}
+<style>
+    .create-listing-wrap {
+        max-width: 960px;
+        margin: 0 auto;
+    }
+
+    .create-listing-header {
+        margin-bottom: 0.8rem;
+    }
+
+    .create-listing-header h3 {
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        margin-bottom: 0.15rem;
+        font-size: 1.35rem;
+    }
+
+    .create-listing-header p {
+        color: #6b7280;
+        font-size: 0.82rem;
+        margin: 0;
+    }
+
+    .create-listing-card {
+        background: #fff;
+        border: 1px solid #eceef1;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(17, 24, 39, 0.05);
+    }
+
+    .form-scroll-area {
+        padding: 1.4rem 1.5rem 0.5rem;
+    }
+
+    .form-footer {
+        padding: 0.9rem 1.5rem;
+        border-top: 1px solid #f0f1f3;
+    }
+
+    .form-group-block {
+        padding-bottom: 1rem;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #f0f1f3;
+    }
+
+    .form-group-block:last-of-type {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .field-group-title {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #9ca3af;
+        margin-bottom: 0.6rem;
+    }
+
+    .create-listing-card label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.2rem;
+    }
+
+    .create-listing-card .form-control,
+    .create-listing-card .form-select {
+        border: 1.5px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 0.4rem 0.65rem;
+        font-size: 0.83rem;
+        background: #fafbfc;
+        transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .create-listing-card .form-control:focus,
+    .create-listing-card .form-select:focus {
+        border-color: var(--bs-primary);
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .create-listing-card .row {
+        row-gap: 0.7rem;
+    }
+
+    .create-listing-card .mb-3 {
+        margin-bottom: 0 !important;
+    }
+
+    /* ---------- Field grid: replaces Bootstrap row/col for predictable, tight gaps ---------- */
+    .field-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 0.7rem 0.9rem;
+        align-items: start;
+    }
+    .field-grid > div { min-width: 0; }
+    .fg-3 { grid-column: span 3; }
+    .fg-4 { grid-column: span 4; }
+    .fg-6 { grid-column: span 6; }
+    .fg-12 { grid-column: span 12; }
+    @media (max-width: 767px) {
+        .fg-3, .fg-4, .fg-6 { grid-column: span 12; }
+    }
+
+    /* Neutralize crispy's own wrapper spacing so the grid gap is the only source of space */
+    .field-grid .form-group,
+    .field-grid .mb-3 {
+        margin-bottom: 0 !important;
+    }
+
+    .create-listing-card textarea.form-control {
+        min-height: 90px;
+    }
+
+    .create-listing-card .form-text {
+        font-size: 0.68rem;
+        margin-top: 0.15rem;
+    }
+
+    /* ---------- Uploads: three side by side ---------- */
+    .upload-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.7rem;
+    }
+
+    .photo-upload-box {
+        border: 1.5px dashed #d1d5db;
+        border-radius: 10px;
+        padding: 0.7rem 0.85rem;
+        background: #fafbfc;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        min-height: 74px;
+        justify-content: center;
+    }
+
+    .photo-upload-box .upload-label-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .photo-upload-box .upload-label-row i {
+        color: var(--bs-primary);
+        font-size: 0.95rem;
+    }
+
+    .photo-upload-box input {
+        font-size: 0.72rem;
+        padding: 0.15rem 0;
+    }
+
+    @media (max-width: 767px) {
+        .upload-row { grid-template-columns: 1fr; }
+    }
+
+    /* ---------- Fireplace toggle ---------- */
+    .fireplace-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #fafbfc;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        height: 100%;
+    }
+
+    .fireplace-toggle label {
+        margin: 0;
+        cursor: pointer;
+    }
+
+    .fireplace-toggle input {
+        width: 1rem;
+        height: 1rem;
+        margin: 0;
+    }
+
+    .create-listing-card .invalid-feedback {
+        font-size: 0.68rem;
+    }
+
+    #submitBtn {
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        padding: 0.6rem 0;
+        font-size: 0.9rem;
+        margin-top: 1.2rem;
+    }
+
+    #submitBtn:disabled {
+        opacity: 0.5;
+    }
+</style>
+
+<div class="create-listing-wrap">
+    <div class="create-listing-header">
+        <h3>List a property</h3>
+        <p>Fill in the details below — it takes about two minutes.</p>
+    </div>
+
+    <div class="create-listing-card">
+        <form method="post" enctype="multipart/form-data" id="listingForm" novalidate>
+            {% csrf_token %}
+
+            <div class="form-scroll-area">
+                <div class="form-group-block">
+                    <div class="field-group-title">Basics</div>
+                    <div class="field-grid">
+                        <div class="fg-6">{{ form.title|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.listing_type|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.property_type|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.city|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.district|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.address|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.year_built|as_crispy_field }}</div>
+                        <div class="fg-3 rooms-bathrooms-field">{{ form.rooms|as_crispy_field }}</div>
+                        <div class="fg-3 rooms-bathrooms-field">{{ form.bathrooms|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.area_sqm|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.price|as_crispy_field }}</div>
+                    </div>
+                </div>
+
+                <div class="form-group-block" id="additionalDetailsBlock">
+                    <div class="field-group-title">Additional details <span style="text-transform:none;font-weight:400;">(optional)</span></div>
+                    <div class="field-grid">
+                        <div class="fg-3">{{ form.heating|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.cooling|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.hoa_fee|as_crispy_field }}</div>
+                        <div class="fg-3">
+                            <label>&nbsp;</label>
+                            <div class="fireplace-toggle">
+                                {{ form.has_fireplace }}
+                                <label class="form-check-label mb-0" for="id_has_fireplace">Has fireplace</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group-block">
+                    <div class="field-group-title">Off-plan project <span style="text-transform:none;font-weight:400;">(optional)</span></div>
+                    <div class="field-grid">
+                        <div class="fg-3">
+                            <label>&nbsp;</label>
+                            <div class="fireplace-toggle">
+                                {{ form.is_off_plan }}
+                                <label class="form-check-label mb-0" for="id_is_off_plan">Off-plan project</label>
+                            </div>
+                        </div>
+                        <div class="fg-3">{{ form.developer_name|as_crispy_field }}</div>
+                        <div class="fg-3">{{ form.expected_completion|as_crispy_field }}</div>
+                        <div class="fg-12">{{ form.payment_plan|as_crispy_field }}</div>
+                    </div>
+                </div>
+
+                <div class="form-group-block">
+                    <div class="field-group-title">Description</div>
+                    <div class="field-grid">
+                        <div class="fg-12">{{ form.description|as_crispy_field }}</div>
+                    </div>
+                </div>
+
+                <div class="form-group-block">
+                    <div class="field-group-title">3D tour <span style="text-transform:none;font-weight:400;">(optional)</span></div>
+                    <div class="field-grid">
+                        <div class="fg-12">{{ form.tour_url|as_crispy_field }}</div>
+                    </div>
+                </div>
+
+                <div class="form-group-block">
+                    <div class="field-group-title">Media</div>
+                    <div class="upload-row">
+                        <div class="photo-upload-box">
+                            <div class="upload-label-row"><i class="bi bi-camera-video"></i> Video (optional)</div>
+                            {{ form.video }}
+                        </div>
+                        <div class="photo-upload-box">
+                            <div class="upload-label-row"><i class="bi bi-grid-3x3"></i> Floor plan (optional)</div>
+                            {{ form.floor_plan }}
+                        </div>
+                        <div class="photo-upload-box">
+                            <div class="upload-label-row"><i class="bi bi-images"></i> Photos</div>
+                            <input type="file" name="images" id="images" class="form-control" multiple accept="image/*">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-footer">
+                <button type="submit" class="btn btn-primary w-100 rounded-pill" id="submitBtn">Publish listing</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const numberRegex = /^[0-9]+(\.[0-9]+)?$/;
+    const textRegex = /^(?=.*[A-Za-zÀ-ÿ])[A-Za-zÀ-ÿ0-9\s,.'\-–—]+$/;
+    const dashOnlyRegex = /^[-\s]+$/;
+
+    const numberFields = ["id_price", "id_area_sqm"];
+    const optionalNumberFields = ["id_rooms", "id_bathrooms", "id_year_built"];
+    const textFields = ["id_title", "id_city", "id_district"];
+    const optionalTextFields = ["id_address"];
+
+    function markField(el, valid) {
+        el.classList.toggle("is-invalid", !valid);
+        el.classList.toggle("is-valid", valid);
+    }
+
+    function validateAll() {
+        let allValid = true;
+
+        numberFields.forEach(function (id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const value = el.value.trim();
+            const valid = numberRegex.test(value) && parseFloat(value) > 0;
+            markField(el, valid);
+            if (!valid) allValid = false;
+        });
+
+        optionalNumberFields.forEach(function (id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const value = el.value.trim();
+            const valid = value === "" || (numberRegex.test(value) && parseInt(value) >= 0);
+            markField(el, valid);
+            if (!valid) allValid = false;
+        });
+
+        textFields.forEach(function (id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const value = el.value.trim();
+            const valid = value !== "" && textRegex.test(value) && !dashOnlyRegex.test(value);
+            markField(el, valid);
+            if (!valid) allValid = false;
+        });
+
+        optionalTextFields.forEach(function (id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const value = el.value.trim();
+            const valid = value === "" || (textRegex.test(value) && !dashOnlyRegex.test(value));
+            markField(el, valid);
+            if (!valid) allValid = false;
+        });
+
+        document.getElementById("submitBtn").disabled = !allValid;
+        return allValid;
+    }
+
+    [...numberFields, ...optionalNumberFields, ...textFields, ...optionalTextFields].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("input", validateAll);
+        if (el) el.addEventListener("change", validateAll);
+    });
+
+    document.getElementById("listingForm").addEventListener("submit", function (e) {
+        if (!validateAll()) {
+            e.preventDefault();
+        }
+    });
+
+    validateAll();
+})();
+
+(function () {
+    const propertyTypeSelect = document.getElementById('id_property_type');
+    const roomsField = document.getElementById('id_rooms');
+    const bathroomsField = document.getElementById('id_bathrooms');
+    const fields = document.querySelectorAll('.rooms-bathrooms-field');
+    const additionalDetailsBlock = document.getElementById('additionalDetailsBlock');
+
+    if (!propertyTypeSelect) return;
+
+    function toggleRoomsBathrooms() {
+        const isLand = propertyTypeSelect.value === 'land';
+        fields.forEach(function (field) {
+            field.style.display = isLand ? 'none' : '';
+        });
+        if (additionalDetailsBlock) {
+            additionalDetailsBlock.style.display = isLand ? 'none' : '';
+        }
+        if (isLand) {
+            if (roomsField) roomsField.value = '';
+            if (bathroomsField) bathroomsField.value = '';
+            if (roomsField) roomsField.classList.remove('is-invalid', 'is-valid');
+            if (bathroomsField) bathroomsField.classList.remove('is-invalid', 'is-valid');
+        }
+    }
+
+    propertyTypeSelect.addEventListener('change', toggleRoomsBathrooms);
+    toggleRoomsBathrooms();
+})();
+</script>
+{% endblock %}

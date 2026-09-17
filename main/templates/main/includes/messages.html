@@ -1,0 +1,81 @@
+{% if messages %}
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+    {% for message in messages %}
+    <div class="toast align-items-center border-0 show shadow-lg toast-custom
+        {% if message.tags == 'success' %}toast-success
+        {% elif message.tags == 'error' or message.tags == 'danger' %}toast-danger
+        {% elif message.tags == 'warning' %}toast-warning
+        {% else %}toast-info{% endif %}"
+        role="alert" data-bs-autohide="true" data-bs-delay="4000">
+        <div class="d-flex align-items-center">
+            <div class="toast-icon">
+                {% if message.tags == 'success' %}
+                    <i class="bi bi-check-circle-fill"></i>
+                {% elif message.tags == 'error' or message.tags == 'danger' %}
+                    <i class="bi bi-x-circle-fill"></i>
+                {% elif message.tags == 'warning' %}
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                {% else %}
+                    <i class="bi bi-info-circle-fill"></i>
+                {% endif %}
+            </div>
+            <div class="toast-body flex-grow-1">{{ message }}</div>
+            <button type="button" class="btn-close btn-close-white me-2" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-progress"></div>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .toast-custom {
+        min-width: 320px;
+        border-radius: 12px;
+        overflow: hidden;
+        position: relative;
+        color: #fff;
+        padding: 0.15rem 0.2rem;
+    }
+
+    .toast-success { background: #16a34a; }
+    .toast-danger  { background: #dc2626; }
+    .toast-warning { background: #d97706; }
+    .toast-info    { background: #2563eb; }
+
+    .toast-icon {
+        font-size: 1.2rem;
+        padding: 0 0.7rem 0 0.3rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .toast-body {
+        font-weight: 500;
+        font-size: 0.9rem;
+        padding: 0.7rem 0;
+    }
+
+    .toast-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.6);
+        width: 100%;
+        animation: toast-shrink 4s linear forwards;
+    }
+
+    @keyframes toast-shrink {
+        from { width: 100%; }
+        to { width: 0%; }
+    }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll('.toast').forEach(function (el) {
+        new bootstrap.Toast(el).show();
+    });
+});
+</script>
+{% endif %}

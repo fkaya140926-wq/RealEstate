@@ -1,0 +1,125 @@
+{% load humanize %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <span class="text-muted small" id="resultCount">{{ total_count }} propert{{ total_count|pluralize:"y,ies" }} found</span>
+</div>
+
+<script type="application/json" id="mapDataJson">{{ map_data_json|safe }}</script>
+
+<div class="row g-4">
+    {% for listing in listings %}
+        <div class="col-md-4">
+            <div class="listing-card position-relative">
+                {% if request.user.is_authenticated %}
+                    <button type="button" class="favorite-toggle-btn" data-pk="{{ listing.pk }}"
+                            data-favorited="{% if listing.pk in favorited_ids %}true{% else %}false{% endif %}">
+                        <i class="bi {% if listing.pk in favorited_ids %}bi-heart-fill text-danger{% else %}bi-heart{% endif %}"></i>
+                    </button>
+                {% endif %}
+                <a href="/listings/{{ listing.slug }}-{{ listing.pk }}/" class="text-decoration-none">
+                    <div class="listing-card-img-wrap">
+                        {% with listing.images.first as first_image %}
+                            {% if first_image %}
+                                <img src="{{ first_image.image.url }}" class="listing-card-img" alt="{{ listing.title }}">
+                            {% else %}
+                                <div class="listing-card-img-empty"><i class="bi bi-image"></i>&nbsp;No photo</div>
+                            {% endif %}
+                        {% endwith %}
+                        <span class="type-pill">{{ listing.get_listing_type_display }}</span>
+                    </div>
+                    <div class="listing-card-body">
+                        <div class="listing-card-title">{{ listing.title }}</div>
+                        <div class="listing-card-location"><i class="bi bi-geo-alt"></i> {{ listing.district }}, {{ listing.city }}</div>
+                        <div class="listing-card-meta">
+                            <span><i class="bi bi-rulers"></i> {{ listing.area_sqm }} sqm</span>
+                            {% if listing.rooms %}<span><i class="bi bi-door-open"></i> {{ listing.rooms }}</span>{% endif %}
+                            {% if listing.bathrooms %}<span><i class="bi bi-droplet"></i> {{ listing.bathrooms }}</span>{% endif %}
+                        </div>
+                        <div class="price-tag">${{ listing.price|floatformat:0|intcomma }} {% if listing.listing_type == "rent" %}<small>/mo</small>{% endif %}</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    {% empty %}
+        <div class="col-12 empty-state">
+            <i class="bi bi-house-slash"></i>
+            <h5>No listings found</h5>
+            <p>Try adjusting your filters or check back later.</p>
+        </div>
+    {% endfor %}
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="d-flex justify-content-center mt-4" aria-label="Listing pages">
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link pagination-link" href="#" data-page="{{ page_obj.previous_page_number }}">&laquo;</a>
+            </li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if num == page_obj.number %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="#" data-page="{{ num }}">{{ num }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link pagination-link" href="#" data-page="{{ page_obj.next_page_number }}">&raquo;</a>
+            </li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<style>
+    .favorite-toggle-btn {
+        position: absolute;
+        top: 0.6rem;
+        right: 0.6rem;
+        z-index: 5;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255,255,255,0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .favorite-toggle-btn:hover {
+        background: #fff;
+    }
+</style>
+
+<script>
+document.querySelectorAll('.favorite-toggle-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const pk = btn.getAttribute('data-pk');
+        fetch(`/listings/${pk}/favorite/`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                const icon = btn.querySelector('i');
+                if (data.is_favorited) {
+                    icon.classList.remove('bi-heart');
+                    icon.classList.add('bi-heart-fill', 'text-danger');
+                } else {
+                    icon.classList.remove('bi-heart-fill', 'text-danger');
+                    icon.classList.add('bi-heart');
+                }
+            });
+    });
+});
+</script>

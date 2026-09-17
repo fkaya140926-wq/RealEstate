@@ -1,0 +1,64 @@
+{% for message in active_conversation.messages.all %}
+    <div class="message-row {% if message.sender == request.user %}mine{% else %}theirs{% endif %}">
+        {% if message.attachment %}
+            <div class="message-attachment">
+                {% with message.attachment.url|lower as attachment_url %}
+                    {% if ".jpg" in attachment_url or ".jpeg" in attachment_url or ".png" in attachment_url or ".gif" in attachment_url or ".webp" in attachment_url %}
+                        <a href="{{ message.attachment.url }}" target="_blank">
+                            <img src="{{ message.attachment.url }}" class="message-attachment-img" alt="attachment">
+                        </a>
+                    {% else %}
+                        <a href="{{ message.attachment.url }}" target="_blank" class="message-attachment-file">
+                            <i class="bi bi-paperclip"></i> {{ message.attachment.name|slice:"20:" }}
+                        </a>
+                    {% endif %}
+                {% endwith %}
+            </div>
+        {% endif %}
+        {% if message.body %}
+            <div class="message-bubble">{{ message.body }}</div>
+        {% endif %}
+        <div class="message-time">
+            {{ message.created_at|date:"H:i" }}
+            {% if message.sender == request.user %}
+                {% if message.is_read %}
+                    <i class="bi bi-check2-all message-read-tick read"></i>
+                {% else %}
+                    <i class="bi bi-check2 message-read-tick"></i>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+{% empty %}
+    <div class="text-muted small text-center mt-4">No messages yet. Say hello!</div>
+{% endfor %}
+
+<style>
+    .message-attachment-img {
+        max-width: 220px;
+        max-height: 220px;
+        border-radius: 10px;
+        display: block;
+        margin-bottom: 0.3rem;
+    }
+    .message-attachment-file {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #f3f4f6;
+        border-radius: 10px;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.85rem;
+        text-decoration: none;
+        color: #374151;
+        margin-bottom: 0.3rem;
+    }
+    .message-read-tick {
+        font-size: 0.85rem;
+        color: #9ca3af;
+        margin-left: 0.2rem;
+    }
+    .message-read-tick.read {
+        color: #3b82f6;
+    }
+</style>

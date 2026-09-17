@@ -1,0 +1,1566 @@
+{% extends "main/header.html" %}
+{% load humanize %}
+{% block page_title %}{{ listing.title }} — ${{ listing.price|floatformat:0|intcomma }} | Homeland{% endblock %}
+{% block page_description %}{{ listing.description|truncatechars:160 }}{% endblock %}
+{% block og_title %}{{ listing.title }} — ${{ listing.price|floatformat:0|intcomma }}{% endblock %}
+{% block og_description %}{{ listing.description|truncatechars:160 }}{% endblock %}
+{% block og_extra %}
+{% with listing.images.first as cover_image %}
+    {% if cover_image %}
+        <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ cover_image.image.url }}">
+    {% endif %}
+{% endwith %}
+<meta property="og:url" content="{{ request.build_absolute_uri }}">
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "RealEstateListing",
+    "name": "{{ listing.title|escapejs }}",
+    "description": "{{ listing.description|truncatechars:300|escapejs }}",
+    "url": "{{ request.build_absolute_uri }}",
+    {% with listing.images.first as cover_image %}
+    {% if cover_image %}"image": "{{ request.scheme }}://{{ request.get_host }}{{ cover_image.image.url }}",{% endif %}
+    {% endwith %}
+    "datePosted": "{{ listing.created_at|date:'c' }}",
+    "offers": {
+        "@type": "Offer",
+        "price": "{{ listing.price|floatformat:0 }}",
+        "priceCurrency": "USD",
+        "availability": "{% if listing.availability == 'available' %}https://schema.org/InStock{% else %}https://schema.org/SoldOut{% endif %}"
+    },
+    "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "{{ listing.city|escapejs }}",
+        "addressRegion": "{{ listing.district|escapejs }}"{% if listing.address %},
+        "streetAddress": "{{ listing.address|escapejs }}"{% endif %}
+    }{% if listing.latitude and listing.longitude %},
+    "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": {{ listing.latitude }},
+        "longitude": {{ listing.longitude }}
+    }{% endif %},
+    "floorSize": {
+        "@type": "QuantitativeValue",
+        "value": "{{ listing.area_sqm }}",
+        "unitCode": "MTK"
+    }{% if listing.rooms %},
+    "numberOfRooms": "{{ listing.rooms }}"{% endif %}{% if listing.bathrooms %},
+    "numberOfBathroomsTotal": "{{ listing.bathrooms }}"{% endif %}
+}
+</script>
+{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+    :root {
+        --ld-radius: 16px;
+        --ld-border: #eceef1;
+        --ld-muted: #6b7280;
+    }
+
+    /* ---------- Photo hero ---------- */
+    .ld-hero {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 0.9rem;
+        margin-bottom: 2rem;
+    }
+
+    .ld-main-photo-wrap {
+        position: relative;
+        border-radius: var(--ld-radius);
+        overflow: hidden;
+        height: 400px;
+    }
+
+    .ld-main-photo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        cursor: pointer;
+        transition: transform 0.3s ease;
+    }
+
+    .ld-main-photo:hover {
+        transform: scale(1.02);
+    }
+
+    .ld-side-photos {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+        height: 400px;
+    }
+
+    .ld-side-photo {
+        flex: 1;
+        border-radius: var(--ld-radius);
+        overflow: hidden;
+    }
+
+    .ld-side-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        cursor: pointer;
+        transition: transform 0.3s ease;
+    }
+
+    .ld-side-photo img:hover {
+        transform: scale(1.05);
+    }
+
+    .ld-photo-empty {
+        width: 100%;
+        height: 100%;
+        background: #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+        font-size: 0.9rem;
+    }
+
+    .ld-hero-btn {
+        position: absolute;
+        bottom: 0.9rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+        font-weight: 600;
+    }
+
+    /* ---------- Content ---------- */
+    .ld-topline {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .ld-title {
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        margin-bottom: 0.25rem;
+    }
+
+    .ld-location {
+        color: var(--ld-muted);
+        font-size: 0.92rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .ld-description {
+        white-space: pre-line;
+        line-height: 1.6;
+        color: #374151;
+        margin-bottom: 1.75rem;
+    }
+
+    .ld-section-title {
+        font-weight: 700;
+        font-size: 1.05rem;
+        margin-bottom: 0.9rem;
+    }
+
+    .ld-video {
+        width: 100%;
+        max-height: 420px;
+        background: #000;
+        border-radius: var(--ld-radius);
+        margin-bottom: 1.75rem;
+    }
+
+    .ld-features {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.9rem;
+        margin-bottom: 1.75rem;
+    }
+
+    .ld-feature {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 0.92rem;
+        color: #374151;
+    }
+
+    .ld-feature i {
+        color: var(--bs-primary);
+        font-size: 1.05rem;
+    }
+
+    /* ---------- Price/m2 card ---------- */
+    .ld-compare-card {
+        background: #f8faff;
+        border: 1px solid #e0e7ff;
+        border-radius: var(--ld-radius);
+        padding: 1.1rem 1.3rem;
+        margin-bottom: 1.75rem;
+    }
+
+    .ld-compare-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.88rem;
+    }
+
+    /* ---------- Location ---------- */
+    #listingMap {
+        height: 320px;
+        border-radius: var(--ld-radius);
+        border: 1px solid var(--ld-border);
+    }
+
+    /* ---------- Sidebar ---------- */
+    .ld-sidebar {
+        position: sticky;
+        top: 1.25rem;
+    }
+
+    .ld-card {
+        background: #fff;
+        border: 1px solid var(--ld-border);
+        border-radius: var(--ld-radius);
+        box-shadow: 0 6px 20px rgba(17,24,39,0.045);
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+    }
+
+    .ld-price {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: var(--bs-primary);
+        letter-spacing: -0.01em;
+    }
+
+    .ld-saved-count {
+        color: var(--ld-muted);
+        font-size: 0.82rem;
+        margin: 0.3rem 0 1rem;
+    }
+
+    .ld-spec-table {
+        width: 100%;
+        font-size: 0.86rem;
+    }
+
+    .ld-spec-table tr {
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .ld-spec-table tr:last-child {
+        border-bottom: none;
+    }
+
+    .ld-spec-table td {
+        padding: 0.5rem 0;
+        color: var(--ld-muted);
+    }
+
+    .ld-spec-table td:last-child {
+        text-align: right;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    /* ---------- Mortgage calculator ---------- */
+    .ld-calc-label {
+        font-size: 0.78rem;
+        color: var(--ld-muted);
+        margin-bottom: 0.25rem;
+        display: block;
+    }
+
+    .ld-calc-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.78rem;
+        color: var(--ld-muted);
+    }
+
+    .ld-calc-result {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-top: 0.6rem;
+        padding-top: 0.9rem;
+        border-top: 1px solid #f3f4f6;
+    }
+
+    /* ---------- Owner card ---------- */
+    .ld-owner-avatar {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: var(--bs-primary);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    .ld-owner-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .ld-share-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 1.4rem;
+        transition: transform 0.15s ease;
+    }
+
+    .ld-share-option:hover .ld-share-icon {
+        transform: scale(1.08);
+    }
+    /* ---------- Nearby places accordion ---------- */
+    .nearby-accordion-item {
+        border: 1px solid #eceef1;
+        border-radius: 10px;
+        margin-bottom: 0.5rem;
+        overflow: hidden;
+    }
+    .nearby-accordion-toggle {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #fafbfc;
+        border: none;
+        padding: 0.7rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #111827;
+    }
+    .nearby-accordion-toggle:hover {
+        background: #f3f4f6;
+    }
+    .nearby-chevron {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        transition: transform 0.2s ease;
+    }
+    .nearby-accordion-toggle[aria-expanded="true"] .nearby-chevron {
+        transform: rotate(180deg);
+    }
+    .nearby-accordion-body {
+        padding: 0.7rem 1rem;
+    }
+</style>
+
+{% with listing.images.all as photos %}
+<div class="ld-hero">
+    <div class="ld-main-photo-wrap">
+        {% if photos %}
+            <img src="{{ photos.0.image.url }}" class="ld-main-photo" alt="{{ listing.title }}" data-bs-toggle="modal" data-bs-target="#photoGalleryModal">
+            {% if photos|length > 1 %}
+                <button type="button" class="btn btn-light btn-sm rounded-pill ld-hero-btn" style="right:0.9rem;" data-bs-toggle="modal" data-bs-target="#photoGalleryModal">
+                    <i class="bi bi-images"></i> View all {{ photos|length }} photos
+                </button>
+            {% endif %}
+        {% else %}
+            <div class="ld-photo-empty">No photos available</div>
+        {% endif %}
+        {% if listing.tour_url %}
+            <button type="button" class="btn btn-primary btn-sm rounded-pill ld-hero-btn" style="left:0.9rem;" data-bs-toggle="modal" data-bs-target="#tourModal">
+                <i class="bi bi-badge-vr"></i> 3D Tour
+            </button>
+        {% endif %}
+    </div>
+    <div class="ld-side-photos">
+        {% for img in photos|slice:"1:3" %}
+            <div class="ld-side-photo">
+                <img src="{{ img.image.url }}" alt="{{ listing.title }}" loading="lazy" data-bs-toggle="modal" data-bs-target="#photoGalleryModal">
+            </div>
+        {% empty %}
+            <div class="ld-side-photo"><div class="ld-photo-empty"></div></div>
+            <div class="ld-side-photo"><div class="ld-photo-empty"></div></div>
+        {% endfor %}
+    </div>
+</div>
+{% endwith %}
+
+<div class="modal fade" id="photoGalleryModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-0">
+                <span class="text-white small" id="galleryCounter"></span>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                {% with listing.images.all as photos %}
+                    {% if photos %}
+                        <div id="listingPhotoCarousel" class="carousel slide" data-bs-ride="false">
+                            <div class="carousel-inner">
+                                {% for img in photos %}
+                                    <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                        <img src="{{ img.image.url }}" class="d-block w-100" alt="{{ listing.title }}" style="max-height:75vh;object-fit:contain;background:#000;">
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if photos|length > 1 %}
+                                <button class="carousel-control-prev" type="button" data-bs-target="#listingPhotoCarousel" data-bs-slide="prev">
+                                    <span class="carousel-control-prev-icon"></span>
+                                </button>
+                                <button class="carousel-control-next" type="button" data-bs-target="#listingPhotoCarousel" data-bs-slide="next">
+                                    <span class="carousel-control-next-icon"></span>
+                                </button>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if listing.tour_url %}
+<div class="modal fade" id="tourModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-0">
+                <span class="text-white small"><i class="bi bi-badge-vr"></i> 3D Tour</span>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div style="position:relative;padding-top:60%;">
+                    <iframe src="{{ listing.tour_url }}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allow="xr-spatial-tracking; gyroscope; accelerometer" allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="modal fade" id="shareModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Share this listing</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-around text-center mb-3">
+                    <a href="#" id="whatsappShareBtn" target="_blank" class="ld-share-option text-decoration-none">
+                        <div class="ld-share-icon" style="background:#25D366;"><i class="bi bi-whatsapp"></i></div>
+                        <div class="small text-muted mt-1">WhatsApp</div>
+                    </a>
+                    <a href="#" id="emailShareBtn" class="ld-share-option text-decoration-none">
+                        <div class="ld-share-icon" style="background:#6b7280;"><i class="bi bi-envelope-fill"></i></div>
+                        <div class="small text-muted mt-1">Email</div>
+                    </a>
+                    <a href="#" id="facebookShareBtn" target="_blank" class="ld-share-option text-decoration-none">
+                        <div class="ld-share-icon" style="background:#1877F2;"><i class="bi bi-facebook"></i></div>
+                        <div class="small text-muted mt-1">Facebook</div>
+                    </a>
+                    <a href="#" id="twitterShareBtn" target="_blank" class="ld-share-option text-decoration-none">
+                        <div class="ld-share-icon" style="background:#111827;"><i class="bi bi-twitter-x"></i></div>
+                        <div class="small text-muted mt-1">X</div>
+                    </a>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="shareLinkInput" class="form-control form-control-sm" readonly>
+                    <button class="btn btn-primary btn-sm" type="button" id="copyLinkBtn">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if request.user.is_authenticated and request.user != listing.owner %}
+<div class="modal fade" id="reportModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-flag text-danger"></i> Report this listing</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'main:report_listing' pk=listing.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="text-muted small">Tell us what's wrong with this listing. Our AI will review it automatically, and it may be temporarily hidden while the report is investigated.</p>
+                    <textarea name="reason" class="form-control" rows="4" placeholder="e.g. This listing looks like a scam, the photos don't match the description, the price seems fake..." required></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-pill">Submit Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="tourRequestModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-calendar-check text-primary"></i> Request a Tour</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'main:request_appointment' pk=listing.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="text-muted small">Pick a date and time that works for you. The owner will approve or decline your request.</p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Date</label>
+                        <input type="date" name="requested_date" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Time</label>
+                        <input type="time" name="requested_time" class="form-control" required>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label small fw-semibold">Note (optional)</label>
+                        <textarea name="note" class="form-control" rows="3" placeholder="Anything the owner should know before the visit..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill">Send Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="ld-topline">
+            <div>
+                <span class="badge bg-primary-subtle text-primary mb-2">{{ listing.get_listing_type_display }}</span>
+                {% if listing.is_off_plan %}
+                    <span class="badge bg-warning-subtle text-warning mb-2"><i class="bi bi-building-gear"></i> Off-Plan</span>
+                {% endif %}
+                {% if listing.availability == "sold" %}
+                    <span class="badge bg-dark mb-2">SOLD</span>
+                {% elif listing.availability == "rented" %}
+                    <span class="badge bg-info mb-2">RENTED</span>
+                {% endif %}
+                <h2 class="ld-title">{{ listing.title }}</h2>
+                <div class="ld-location"><i class="bi bi-geo-alt"></i> {{ listing.district }}, {{ listing.city }}</div>
+                <div class="text-muted small mt-1">
+                    <i class="bi bi-calendar3"></i> Listed {{ listing.created_at|timesince }} ago
+                    &nbsp;·&nbsp;
+                    <i class="bi bi-eye"></i> {{ listing.view_count }} view{{ listing.view_count|pluralize }}
+                </div>
+            </div>
+            <div class="d-flex gap-2 flex-shrink-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#shareModal">
+                    <i class="bi bi-share"></i> Share
+                </button>
+                {% if request.user.is_authenticated and request.user != listing.owner %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#reportModal">
+                        <i class="bi bi-flag"></i>
+                    </button>
+                {% endif %}
+                {% if request.user.is_authenticated %}
+                    <button type="button" id="favoriteBtn" class="btn btn-outline-danger btn-sm rounded-pill" data-pk="{{ listing.pk }}" data-favorited="{% if is_favorited %}true{% else %}false{% endif %}">
+                        <i class="bi {% if is_favorited %}bi-heart-fill{% else %}bi-heart{% endif %}" id="favoriteIcon"></i>
+                        <span id="favoriteLabel">{% if is_favorited %}Saved{% else %}Save{% endif %}</span>
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <p class="ld-description">{{ listing.description }}</p>
+
+        {% if listing.video %}
+            <div class="ld-section-title">Video Walkthrough</div>
+            <video controls class="ld-video">
+                <source src="{{ listing.video.url }}">
+                Your browser does not support video playback.
+            </video>
+        {% endif %}
+
+        {% if listing.floor_plan %}
+            <div class="ld-section-title"><i class="bi bi-grid-3x3"></i> Floor Plan</div>
+            <a href="{{ listing.floor_plan.url }}" target="_blank" style="display:block;">
+                <img src="{{ listing.floor_plan.url }}" alt="Floor plan" loading="lazy" style="width:100%;max-width:520px;border-radius:12px;border:1px solid #eceef1;cursor:zoom-in;">
+            </a>
+        {% endif %}
+
+        <div class="ld-section-title">Property Features</div>
+        <div class="ld-features">
+            <div class="ld-feature"><i class="bi bi-house-door"></i> {{ listing.property_type|title }}</div>
+            <div class="ld-feature"><i class="bi bi-arrows-fullscreen"></i> {{ listing.area_sqm }} sqm</div>
+            {% if listing.rooms %}
+                <div class="ld-feature"><i class="bi bi-door-open"></i> {{ listing.rooms }} Bedrooms</div>
+            {% endif %}
+            {% if listing.bathrooms %}
+                <div class="ld-feature"><i class="bi bi-droplet"></i> {{ listing.bathrooms }} Bathrooms</div>
+            {% endif %}
+            {% if listing.year_built %}
+                <div class="ld-feature"><i class="bi bi-calendar-event"></i> Built in {{ listing.year_built }}</div>
+            {% endif %}
+            {% if listing.heating and listing.heating != "none" %}
+                <div class="ld-feature"><i class="bi bi-thermometer-sun"></i> {{ listing.get_heating_display }} heating</div>
+            {% endif %}
+            {% if listing.cooling and listing.cooling != "none" %}
+                <div class="ld-feature"><i class="bi bi-snow"></i> {{ listing.get_cooling_display }}</div>
+            {% endif %}
+            {% if listing.has_fireplace %}
+                <div class="ld-feature"><i class="bi bi-fire"></i> Fireplace</div>
+            {% endif %}
+            {% if listing.hoa_fee %}
+                <div class="ld-feature"><i class="bi bi-building"></i> HOA ${{ listing.hoa_fee|floatformat:0 }}/mo</div>
+            {% endif %}
+        </div>
+
+        {% if listing.is_off_plan %}
+        <div class="ld-compare-card">
+            <div class="ld-section-title" style="margin-bottom:0.7rem;"><i class="bi bi-building-gear text-primary"></i> Off-Plan Project Details</div>
+            {% if listing.developer_name %}
+                <div class="ld-compare-row mb-1">
+                    <span class="text-muted">Developer</span>
+                    <span class="fw-semibold">{{ listing.developer_name }}</span>
+                </div>
+            {% endif %}
+            {% if listing.expected_completion %}
+                <div class="ld-compare-row mb-1">
+                    <span class="text-muted">Expected Completion</span>
+                    <span class="fw-semibold">{{ listing.expected_completion|date:"F Y" }}</span>
+                </div>
+            {% endif %}
+            {% if listing.payment_plan %}
+                <hr class="my-2">
+                <div class="text-muted small mb-1">Payment Plan</div>
+                <p class="small mb-0" style="white-space:pre-line;">{{ listing.payment_plan }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if price_per_sqm %}
+        <div class="ld-compare-card">
+            <div class="ld-section-title" style="margin-bottom:0.7rem;"><i class="bi bi-bar-chart text-primary"></i> Price per m² Comparison</div>
+            <div class="ld-compare-row mb-1">
+                <span class="text-muted">This listing</span>
+                <span class="fw-semibold">${{ price_per_sqm|floatformat:0|intcomma }}/m²</span>
+            </div>
+            {% if avg_price_per_sqm %}
+                <div class="ld-compare-row mb-2">
+                    <span class="text-muted">Average in {{ listing.city }} ({{ listing.property_type|title }})</span>
+                    <span class="fw-semibold">${{ avg_price_per_sqm|floatformat:0|intcomma }}/m²</span>
+                </div>
+                {% if price_diff_percent > 0 %}
+                    <span class="badge bg-danger-subtle text-danger"><i class="bi bi-arrow-up"></i> {{ price_diff_percent }}% above average</span>
+                {% elif price_diff_percent < 0 %}
+                    <span class="badge bg-success-subtle text-success"><i class="bi bi-arrow-down"></i> {{ price_diff_percent|cut:"-" }}% below average</span>
+                {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary">Right at average</span>
+                {% endif %}
+            {% else %}
+                <p class="text-muted small mb-0">Not enough similar listings in {{ listing.city }} yet for a comparison.</p>
+            {% endif %}
+
+            <hr class="my-3">
+            <button type="button" id="aiEstimateBtn" class="btn btn-outline-primary btn-sm rounded-pill" data-pk="{{ listing.pk }}">
+                <i class="bi bi-stars"></i> Get AI Price Estimate
+            </button>
+            <div id="aiEstimateResult" class="mt-3" style="display:none;"></div>
+        </div>
+        {% endif %}
+
+        {% if listing.price_history.all %}
+        <div class="ld-compare-card">
+            <div class="ld-section-title" style="margin-bottom:0.7rem;"><i class="bi bi-clock-history text-primary"></i> Price History</div>
+            <table class="table table-sm mb-0" style="font-size:0.85rem;">
+                <thead>
+                    <tr class="text-muted">
+                        <th style="font-weight:600;">Date</th>
+                        <th style="font-weight:600;">Event</th>
+                        <th style="font-weight:600;" class="text-end">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in listing.price_history.all %}
+                        <tr>
+                            <td class="text-muted">{{ entry.created_at|date:"M j, Y" }}</td>
+                            <td>
+                                {% if entry.event == "listed" %}
+                                    <span class="badge bg-primary-subtle text-primary">Listed</span>
+                                {% elif entry.event == "price_change" %}
+                                    <span class="badge bg-warning-subtle text-warning">Price Change</span>
+                                {% elif entry.event == "sold" %}
+                                    <span class="badge bg-dark-subtle text-dark">Sold</span>
+                                {% elif entry.event == "rented" %}
+                                    <span class="badge bg-info-subtle text-info">Rented</span>
+                                {% elif entry.event == "relisted" %}
+                                    <span class="badge bg-success-subtle text-success">Relisted</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-semibold">${{ entry.price|floatformat:0|intcomma }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if listing.walk_score is not None %}
+            <div class="ld-section-title">Walkability</div>
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <div style="width:48px;height:48px;border-radius:50%;background:{% if listing.walk_score >= 70 %}#dcfce7{% elif listing.walk_score >= 40 %}#fef3c7{% else %}#fee2e2{% endif %};color:{% if listing.walk_score >= 70 %}#166534{% elif listing.walk_score >= 40 %}#92400e{% else %}#991b1b{% endif %};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0;">
+                    {{ listing.walk_score }}
+                </div>
+                <div>
+                    <div class="fw-semibold small">
+                        {% if listing.walk_score >= 90 %}
+                            Walker's Paradise
+                        {% elif listing.walk_score >= 70 %}
+                            Very Walkable
+                        {% elif listing.walk_score >= 50 %}
+                            Somewhat Walkable
+                        {% elif listing.walk_score >= 25 %}
+                            Car-Dependent
+                        {% else %}
+                            Very Car-Dependent
+                        {% endif %}
+                    </div>
+                    <div class="text-muted small">Based on nearby amenities</div>
+                </div>
+            </div>
+
+            {% if listing.nearby_places %}
+                <div class="nearby-accordion mb-3">
+                    {% if listing.nearby_places.schools %}
+                        <div class="nearby-accordion-item">
+                            <button type="button" class="nearby-accordion-toggle" data-bs-toggle="collapse" data-bs-target="#nearbySchools" aria-expanded="false">
+                                <span><i class="bi bi-mortarboard text-primary"></i> Schools</span>
+                                <i class="bi bi-chevron-down nearby-chevron"></i>
+                            </button>
+                            <div class="collapse" id="nearbySchools">
+                                <div class="nearby-accordion-body">
+                                    {% for place in listing.nearby_places.schools %}
+                                        <div class="d-flex justify-content-between text-muted small py-1 {% if not forloop.last %}border-bottom{% endif %}">
+                                            <span>{{ place.name }}</span>
+                                            <span>{{ place.distance_m }} m</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% if listing.nearby_places.hospitals %}
+                        <div class="nearby-accordion-item">
+                            <button type="button" class="nearby-accordion-toggle" data-bs-toggle="collapse" data-bs-target="#nearbyHospitals" aria-expanded="false">
+                                <span><i class="bi bi-hospital text-primary"></i> Hospitals</span>
+                                <i class="bi bi-chevron-down nearby-chevron"></i>
+                            </button>
+                            <div class="collapse" id="nearbyHospitals">
+                                <div class="nearby-accordion-body">
+                                    {% for place in listing.nearby_places.hospitals %}
+                                        <div class="d-flex justify-content-between text-muted small py-1 {% if not forloop.last %}border-bottom{% endif %}">
+                                            <span>{{ place.name }}</span>
+                                            <span>{{ place.distance_m }} m</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% if listing.nearby_places.parks %}
+                        <div class="nearby-accordion-item">
+                            <button type="button" class="nearby-accordion-toggle" data-bs-toggle="collapse" data-bs-target="#nearbyParks" aria-expanded="false">
+                                <span><i class="bi bi-tree text-primary"></i> Parks</span>
+                                <i class="bi bi-chevron-down nearby-chevron"></i>
+                            </button>
+                            <div class="collapse" id="nearbyParks">
+                                <div class="nearby-accordion-body">
+                                    {% for place in listing.nearby_places.parks %}
+                                        <div class="d-flex justify-content-between text-muted small py-1 {% if not forloop.last %}border-bottom{% endif %}">
+                                            <span>{{ place.name }}</span>
+                                            <span>{{ place.distance_m }} m</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% if listing.nearby_places.transit %}
+                        <div class="nearby-accordion-item">
+                            <button type="button" class="nearby-accordion-toggle" data-bs-toggle="collapse" data-bs-target="#nearbyTransit" aria-expanded="false">
+                                <span><i class="bi bi-bus-front text-primary"></i> Transit</span>
+                                <i class="bi bi-chevron-down nearby-chevron"></i>
+                            </button>
+                            <div class="collapse" id="nearbyTransit">
+                                <div class="nearby-accordion-body">
+                                    {% for place in listing.nearby_places.transit %}
+                                        <div class="d-flex justify-content-between text-muted small py-1 {% if not forloop.last %}border-bottom{% endif %}">
+                                            <span>{{ place.name }}</span>
+                                            <span>{{ place.distance_m }} m</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endif %}
+
+        {% if listing.latitude and listing.longitude %}
+            <div class="ld-section-title">Location</div>
+            {% if listing.address %}<p class="text-muted small mb-2">{{ listing.address }}</p>{% endif %}
+            <div id="listingMap" class="mb-3"></div>
+        {% elif listing.address %}
+            <div class="ld-section-title">Location</div>
+            <p class="text-muted small">{{ listing.address }}</p>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <div class="ld-sidebar">
+            <div class="ld-card">
+                <div class="ld-price">${{ listing.price|floatformat:0|intcomma }}</div>
+                {% if listing.favorite_count %}
+                    <div class="ld-saved-count"><i class="bi bi-heart-fill text-danger"></i> {{ listing.favorite_count }} saved this</div>
+                {% else %}
+                    <div class="mb-2"></div>
+                {% endif %}
+                <table class="ld-spec-table">
+                    <tr><td>Property Type</td><td>{{ listing.property_type|title }}</td></tr>
+                    <tr><td>Offer Type</td><td>{{ listing.get_listing_type_display }}</td></tr>
+                    <tr><td>Area</td><td>{{ listing.area_sqm }} sqm</td></tr>
+                    {% if listing.rooms %}<tr><td>Bedrooms</td><td>{{ listing.rooms }}</td></tr>{% endif %}
+                    {% if listing.bathrooms %}<tr><td>Bathrooms</td><td>{{ listing.bathrooms }}</td></tr>{% endif %}
+                    <tr>
+                        <td>Status</td>
+                        <td>
+                            {% if not listing.is_active %}
+                                Not Available
+                            {% elif listing.availability == "sold" %}
+                                Sold
+                            {% elif listing.availability == "rented" %}
+                                Rented
+                            {% else %}
+                                Available
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            {% if listing.listing_type == "sale" %}
+            <div class="ld-card">
+                <div class="ld-section-title" style="font-size:0.95rem;"><i class="bi bi-calculator text-primary"></i> Mortgage Calculator</div>
+                <div class="mb-2">
+                    <span class="ld-calc-label">Down payment</span>
+                    <input type="range" class="form-range" id="downPaymentRange" min="0" max="90" value="20">
+                    <div class="ld-calc-row">
+                        <span id="downPaymentPercent">20%</span>
+                        <span id="downPaymentAmount"></span>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <span class="ld-calc-label">Loan term</span>
+                    <select class="form-select form-select-sm" id="loanTermSelect">
+                        <option value="15">15 years</option>
+                        <option value="20">20 years</option>
+                        <option value="30" selected>30 years</option>
+                    </select>
+                </div>
+                <div>
+                    <span class="ld-calc-label">Interest rate (% per year)</span>
+                    <input type="number" class="form-control form-control-sm" id="interestRateInput" value="6.5" step="0.1" min="0">
+                </div>
+                <div class="ld-calc-result">
+                    <span class="text-muted small">Est. monthly payment</span>
+                    <span class="fw-bold fs-5 text-primary" id="monthlyPaymentResult">$0</span>
+                </div>
+                <div class="text-muted small" id="loanAmountResult"></div>
+                <p class="text-muted mt-2 mb-0" style="font-size:0.72rem;">Estimate only. Does not include taxes, insurance, or HOA fees.</p>
+
+                <hr class="my-3">
+                <div class="ld-calc-label mb-2">Compare down payment scenarios</div>
+                <table class="table table-sm mb-0" style="font-size:0.78rem;" id="scenarioTable">
+                    <thead>
+                        <tr class="text-muted">
+                            <th style="font-weight:600;">Down</th>
+                            <th style="font-weight:600;" class="text-end">Down amount</th>
+                            <th style="font-weight:600;" class="text-end">Loan amount</th>
+                            <th style="font-weight:600;" class="text-end">Monthly</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scenarioTableBody"></tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <div class="ld-card">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <div class="ld-owner-avatar">
+                        {% if listing.owner.profile.is_agency and listing.owner.profile.avatar %}
+                            <img src="{{ listing.owner.profile.avatar.url }}" alt="{{ listing.owner.profile.company_name|default:listing.owner.username }} logo" loading="lazy">
+                        {% else %}
+                            {{ listing.owner.username|first|upper }}
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if listing.owner.profile.is_agency %}
+                            <div class="fw-semibold">{{ listing.owner.profile.company_name|default:listing.owner.username }}</div>
+                            <a href="{% url 'main:agency_profile' username=listing.owner.username %}" class="text-decoration-none">
+                                <span class="badge bg-primary-subtle text-primary"><i class="bi bi-patch-check-fill"></i> Verified Agency</span>
+                            </a>
+                        {% else %}
+                            <div class="fw-semibold">{{ listing.owner.username }}</div>
+                            <div class="text-muted small">Property Owner</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if request.user.is_authenticated %}
+                    {% if request.user != listing.owner %}
+                        <a href="{% url 'main:start_conversation' listing_id=listing.pk %}" class="btn btn-primary w-100 rounded-pill mb-2">
+                            <i class="bi bi-chat-dots"></i> Message Owner
+                        </a>
+                        <button type="button" class="btn btn-outline-primary w-100 rounded-pill" data-bs-toggle="modal" data-bs-target="#tourRequestModal">
+                            <i class="bi bi-calendar-check"></i> Request a Tour
+                        </button>
+                    {% else %}
+                        <a href="{% url 'main:inbox' %}" class="btn btn-outline-secondary w-100 rounded-pill">View Messages</a>
+                    {% endif %}
+                {% else %}
+                    <a href="{% url 'main:login' %}" class="btn btn-primary w-100 rounded-pill">Log in to Message</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if similar_listings %}
+<div class="mt-5">
+    <div class="ld-section-title mb-3">Similar Listings</div>
+    <div class="row g-4">
+        {% for item in similar_listings %}
+            <div class="col-md-4">
+                <div class="listing-card position-relative" style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #f0f1f3;box-shadow:0 4px 14px rgba(17,24,39,0.04);height:100%;">
+                    <a href="{% url 'main:listing_detail' slug=item.slug pk=item.pk %}" class="text-decoration-none">
+                        <div style="position:relative;height:190px;overflow:hidden;">
+                            {% with item.images.first as first_image %}
+                                {% if first_image %}
+                                    <img src="{{ first_image.image.url }}" style="width:100%;height:100%;object-fit:cover;" alt="{{ item.title }}" loading="lazy">
+                                {% else %}
+                                    <div style="width:100%;height:100%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;color:#b0b5bd;font-size:0.85rem;">
+                                        <i class="bi bi-image"></i>&nbsp;No photo
+                                    </div>
+                                {% endif %}
+                            {% endwith %}
+                            <span style="position:absolute;top:0.7rem;left:0.7rem;background:rgba(17,24,39,0.75);color:#fff;font-size:0.7rem;font-weight:600;padding:0.25rem 0.65rem;border-radius:100px;">
+                                {{ item.get_listing_type_display }}
+                            </span>
+                        </div>
+                        <div style="padding:1rem 1.1rem 1.15rem;">
+                            <div style="font-weight:700;font-size:1.02rem;color:#111827;margin-bottom:0.15rem;">{{ item.title }}</div>
+                            <div style="font-size:0.8rem;color:#9ca3af;margin-bottom:0.6rem;">
+                                <i class="bi bi-geo-alt"></i> {{ item.district }}, {{ item.city }}
+                            </div>
+                            <div style="font-weight:800;color:#111827;font-size:1.15rem;">
+                                ${{ item.price|floatformat:0|intcomma }} {% if item.listing_type == "rent" %}<small style="font-weight:500;font-size:0.75rem;color:#9ca3af;">/mo</small>{% endif %}
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<style>
+    #askAiFab {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        z-index: 1050;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--bs-primary), #4338ca);
+        color: #fff;
+        border: none;
+        box-shadow: 0 8px 24px rgba(67,56,202,0.35);
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    #askAiFab:hover {
+        transform: scale(1.06);
+        box-shadow: 0 10px 28px rgba(67,56,202,0.45);
+    }
+
+    #askAiFab .bi-x-lg {
+        font-size: 1.3rem;
+    }
+
+    #askAiPanel {
+        position: fixed;
+        bottom: 6rem;
+        right: 1.5rem;
+        z-index: 1050;
+        width: 340px;
+        max-width: calc(100vw - 2rem);
+        background: #fff;
+        border-radius: 20px;
+        border: none;
+        box-shadow: 0 16px 48px rgba(17,24,39,0.22);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    #askAiPanel.open {
+        display: flex;
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+
+    #askAiPanelHeader {
+        padding: 1.1rem 1.2rem;
+        background: linear-gradient(135deg, var(--bs-primary), #4338ca);
+        color: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    #askAiPanelHeader .askai-header-text {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+    }
+
+    #askAiPanelHeader .askai-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+
+    #askAiPanelHeader .askai-title {
+        font-weight: 700;
+        font-size: 0.92rem;
+        line-height: 1.2;
+    }
+
+    #askAiPanelHeader .askai-subtitle {
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.8);
+        font-weight: 400;
+    }
+
+    #askAiCloseBtn {
+        cursor: pointer;
+        font-size: 1.3rem;
+        line-height: 1;
+        opacity: 0.85;
+        transition: opacity 0.15s ease;
+        flex-shrink: 0;
+    }
+
+    #askAiCloseBtn:hover {
+        opacity: 1;
+    }
+
+    #askAiChatBox {
+        padding: 1rem 1rem 0.4rem;
+        max-height: 320px;
+        overflow-y: auto;
+        flex: 1;
+        background: #f8f9fb;
+    }
+
+    #askAiChatBox::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    #askAiChatBox::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 10px;
+    }
+
+    .askai-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.5rem;
+        margin-bottom: 0.85rem;
+        animation: askaiFadeIn 0.2s ease;
+    }
+
+    .askai-row.askai-user {
+        flex-direction: row-reverse;
+    }
+
+    .askai-avatar-sm {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+        background: var(--bs-primary);
+        color: #fff;
+    }
+
+    .askai-row.askai-user .askai-avatar-sm {
+        background: #d1d5db;
+        color: #4b5563;
+    }
+
+    .askai-bubble {
+        max-width: 76%;
+        padding: 0.55rem 0.85rem;
+        font-size: 0.85rem;
+        line-height: 1.45;
+        border-radius: 16px;
+    }
+
+    .askai-row.askai-ai .askai-bubble {
+        background: #fff;
+        color: #1f2937;
+        border: 1px solid #eceef1;
+        border-bottom-left-radius: 4px;
+    }
+
+    .askai-row.askai-user .askai-bubble {
+        background: linear-gradient(135deg, var(--bs-primary), #4338ca);
+        color: #fff;
+        border-bottom-right-radius: 4px;
+    }
+
+    @keyframes askaiFadeIn {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    #askAiPanelFooter {
+        padding: 0.8rem;
+        border-top: 1px solid var(--ld-border);
+        background: #fff;
+    }
+
+    #askAiPanelFooter .input-group {
+        border-radius: 100px;
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+        background: #f8f9fb;
+    }
+
+    #askAiInput {
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        font-size: 0.85rem;
+        padding-left: 1rem;
+    }
+
+    #askAiInput:focus {
+        box-shadow: none;
+        background: transparent;
+    }
+
+    #askAiBtn {
+        border-radius: 50%;
+        width: 34px;
+        height: 34px;
+        margin: 3px 3px 3px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bs-primary);
+        border: none;
+    }
+</style>
+
+<button type="button" id="askAiFab" data-pk="{{ listing.pk }}">
+    <i class="bi bi-chat-dots-fill"></i>
+</button>
+
+<div id="askAiPanel">
+    <div id="askAiPanelHeader">
+        <div class="askai-header-text">
+            <div class="askai-avatar"><i class="bi bi-stars"></i></div>
+            <div>
+                <div class="askai-title">Property Assistant</div>
+                <div class="askai-subtitle">Ask me anything about this listing</div>
+            </div>
+        </div>
+        <span id="askAiCloseBtn">&times;</span>
+    </div>
+    <div id="askAiChatBox"></div>
+    <div id="askAiPanelFooter">
+        <div class="input-group">
+            <input type="text" id="askAiInput" class="form-control form-control-sm" placeholder="e.g. How many rooms does it have?">
+            <button type="button" id="askAiBtn" data-pk="{{ listing.pk }}">
+                <i class="bi bi-send-fill" style="font-size:0.8rem;"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const btn = document.getElementById('favoriteBtn');
+    if (!btn) return;
+
+    btn.addEventListener('click', function () {
+        const pk = btn.getAttribute('data-pk');
+        fetch(`/listings/${pk}/favorite/`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                const icon = document.getElementById('favoriteIcon');
+                const label = document.getElementById('favoriteLabel');
+                if (data.is_favorited) {
+                    icon.classList.remove('bi-heart');
+                    icon.classList.add('bi-heart-fill');
+                    label.textContent = 'Saved';
+                } else {
+                    icon.classList.remove('bi-heart-fill');
+                    icon.classList.add('bi-heart');
+                    label.textContent = 'Save';
+                }
+            });
+    });
+})();
+
+{% if listing.latitude and listing.longitude %}
+(function () {
+    const map = L.map('listingMap').setView([{{ listing.latitude }}, {{ listing.longitude }}], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    L.marker([{{ listing.latitude }}, {{ listing.longitude }}]).addTo(map);
+})();
+{% endif %}
+
+(function () {
+    const carousel = document.getElementById('listingPhotoCarousel');
+    const counter = document.getElementById('galleryCounter');
+    if (!carousel || !counter) return;
+
+    const items = carousel.querySelectorAll('.carousel-item');
+    const total = items.length;
+
+    function updateCounter() {
+        const activeIndex = Array.from(items).findIndex(function (el) {
+            return el.classList.contains('active');
+        });
+        counter.textContent = (activeIndex + 1) + ' / ' + total;
+    }
+
+    updateCounter();
+    carousel.addEventListener('slid.bs.carousel', updateCounter);
+})();
+
+(function () {
+    const priceValue = {{ listing.price }};
+    const downRange = document.getElementById('downPaymentRange');
+    const termSelect = document.getElementById('loanTermSelect');
+    const rateInput = document.getElementById('interestRateInput');
+    if (!downRange || !termSelect || !rateInput) return;
+
+    const downPercentLabel = document.getElementById('downPaymentPercent');
+    const downAmountLabel = document.getElementById('downPaymentAmount');
+    const monthlyResult = document.getElementById('monthlyPaymentResult');
+    const loanAmountResult = document.getElementById('loanAmountResult');
+
+    function formatMoney(n) {
+        return '$' + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+
+    function calculate() {
+        const downPercent = parseFloat(downRange.value);
+        const years = parseFloat(termSelect.value);
+        const annualRate = parseFloat(rateInput.value) || 0;
+
+        const downAmount = priceValue * (downPercent / 100);
+        const loanAmount = priceValue - downAmount;
+        const monthlyRate = annualRate / 100 / 12;
+        const numPayments = years * 12;
+
+        let monthlyPayment;
+        if (monthlyRate === 0) {
+            monthlyPayment = loanAmount / numPayments;
+        } else {
+            monthlyPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
+        }
+
+        downPercentLabel.textContent = downPercent + '%';
+        downAmountLabel.textContent = formatMoney(downAmount);
+        monthlyResult.textContent = formatMoney(monthlyPayment) + '/mo';
+        loanAmountResult.textContent = 'Loan amount: ' + formatMoney(loanAmount);
+    }
+
+    function calculatePayment(downPercent, years, annualRate) {
+        const downAmount = priceValue * (downPercent / 100);
+        const loanAmount = priceValue - downAmount;
+        const monthlyRate = annualRate / 100 / 12;
+        const numPayments = years * 12;
+
+        let monthlyPayment;
+        if (monthlyRate === 0) {
+            monthlyPayment = loanAmount / numPayments;
+        } else {
+            monthlyPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
+        }
+        return { downAmount, loanAmount, monthlyPayment };
+    }
+
+    function renderScenarioTable() {
+        const years = parseFloat(termSelect.value);
+        const annualRate = parseFloat(rateInput.value) || 0;
+        const scenarios = [10, 20, 30, 40];
+        const tbody = document.getElementById('scenarioTableBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = scenarios.map(function (pct) {
+            const r = calculatePayment(pct, years, annualRate);
+            return '<tr' + (pct === parseFloat(downRange.value) ? ' style="background:#eff6ff;"' : '') + '>' +
+                '<td class="fw-semibold">' + pct + '%</td>' +
+                '<td class="text-end">' + formatMoney(r.downAmount) + '</td>' +
+                '<td class="text-end">' + formatMoney(r.loanAmount) + '</td>' +
+                '<td class="text-end fw-semibold text-primary">' + formatMoney(r.monthlyPayment) + '</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    downRange.addEventListener('input', renderScenarioTable);
+    termSelect.addEventListener('change', renderScenarioTable);
+    rateInput.addEventListener('input', renderScenarioTable);
+    renderScenarioTable();
+
+    downRange.addEventListener('input', calculate);
+    termSelect.addEventListener('change', calculate);
+    rateInput.addEventListener('input', calculate);
+
+    calculate();
+})();
+
+(function () {
+    const btn = document.getElementById('aiEstimateBtn');
+    const resultBox = document.getElementById('aiEstimateResult');
+    if (!btn) return;
+
+    btn.addEventListener('click', function () {
+        const pk = btn.getAttribute('data-pk');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Estimating...';
+
+        const params = new URLSearchParams();
+        params.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]')?.value || '');
+
+        fetch(`/listings/${pk}/ai-price-estimate/`, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCookie('csrftoken') },
+            body: params,
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                btn.style.display = 'none';
+                resultBox.style.display = 'block';
+
+                if (data.error) {
+                    resultBox.innerHTML = '<p class="text-muted small mb-0">' + data.error + '</p>';
+                    return;
+                }
+
+                function formatMoney(n) {
+                    return '$' + Math.round(n).toLocaleString();
+                }
+
+                resultBox.innerHTML =
+                    '<div class="p-3 rounded-3" style="background:#fff;border:1px solid #e0e7ff;">' +
+                    '<div class="small text-muted mb-1"><i class="bi bi-stars text-primary"></i> AI Estimated Range</div>' +
+                    '<div class="fw-bold fs-6 mb-1">' + formatMoney(data.low) + ' &ndash; ' + formatMoney(data.high) + '</div>' +
+                    '<div class="text-muted small">' + data.reasoning + '</div>' +
+                    '<div class="text-muted mt-2" style="font-size:0.7rem;">Based on ' + data.comp_count + ' comparable listings. AI-generated, not a formal appraisal.</div>' +
+                    '</div>';
+            })
+            .catch(function () {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-stars"></i> Get AI Price Estimate';
+                resultBox.style.display = 'block';
+                resultBox.innerHTML = '<p class="text-danger small mb-0">Something went wrong. Try again.</p>';
+            });
+    });
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
+    }
+})();
+
+(function () {
+    const fab = document.getElementById('askAiFab');
+    const panel = document.getElementById('askAiPanel');
+    const closeBtn = document.getElementById('askAiCloseBtn');
+    const askBtn = document.getElementById('askAiBtn');
+    const askInput = document.getElementById('askAiInput');
+    const chatBox = document.getElementById('askAiChatBox');
+    if (!fab) return;
+
+    let chatHistory = [];
+    let welcomed = false;
+
+    function setFabIcon(open) {
+        fab.innerHTML = open ? '<i class="bi bi-x-lg"></i>' : '<i class="bi bi-chat-dots-fill"></i>';
+    }
+
+    fab.addEventListener('click', function () {
+        panel.classList.toggle('open');
+        const isOpen = panel.classList.contains('open');
+        setFabIcon(isOpen);
+        if (isOpen) {
+            askInput.focus();
+            if (!welcomed) {
+                appendMessage("Hi! I'm here to help with questions about this listing — price, size, location, or whether it looks like a good fit for you. What would you like to know?", 'ai');
+                welcomed = true;
+            }
+        }
+    });
+
+    closeBtn.addEventListener('click', function () {
+        panel.classList.remove('open');
+        setFabIcon(false);
+    });
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
+    }
+
+    function appendMessage(text, sender) {
+        const row = document.createElement('div');
+        row.className = 'askai-row ' + (sender === 'user' ? 'askai-user' : 'askai-ai');
+
+        const avatar = document.createElement('div');
+        avatar.className = 'askai-avatar-sm';
+        avatar.innerHTML = sender === 'user' ? '<i class="bi bi-person-fill"></i>' : '<i class="bi bi-stars"></i>';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'askai-bubble';
+        bubble.textContent = text;
+
+        row.appendChild(avatar);
+        row.appendChild(bubble);
+        chatBox.appendChild(row);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function sendQuestion() {
+        const pk = askBtn.getAttribute('data-pk');
+        const question = askInput.value.trim();
+        if (!question) return;
+
+        appendMessage(question, 'user');
+        askInput.value = '';
+        askBtn.disabled = true;
+
+        const params = new URLSearchParams();
+        params.append('question', question);
+        params.append('history', JSON.stringify(chatHistory));
+
+        fetch(`/listings/${pk}/ask-ai/`, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCookie('csrftoken') },
+            body: params,
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                askBtn.disabled = false;
+                if (data.error) {
+                    appendMessage(data.error, 'ai');
+                    return;
+                }
+                chatHistory.push({ role: 'user', content: question });
+                chatHistory.push({ role: 'assistant', content: data.answer });
+                appendMessage(data.answer, 'ai');
+            })
+            .catch(function () {
+                askBtn.disabled = false;
+                appendMessage('Something went wrong. Try again.', 'ai');
+            });
+    }
+
+    askBtn.addEventListener('click', sendQuestion);
+    askInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') sendQuestion();
+    });
+})();
+
+(function () {
+    const pageUrl = window.location.href;
+    const pageTitle = "{{ listing.title|escapejs }}";
+
+    const shareLinkInput = document.getElementById('shareLinkInput');
+    if (shareLinkInput) shareLinkInput.value = pageUrl;
+
+    const copyBtn = document.getElementById('copyLinkBtn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function () {
+            function showCopied() {
+                const original = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                setTimeout(function () { copyBtn.textContent = original; }, 1800);
+            }
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(pageUrl).then(showCopied);
+            } else {
+                shareLinkInput.removeAttribute('readonly');
+                shareLinkInput.select();
+                document.execCommand('copy');
+                shareLinkInput.setAttribute('readonly', true);
+                showCopied();
+            }
+        });
+    }
+
+    const waBtn = document.getElementById('whatsappShareBtn');
+    if (waBtn) waBtn.href = 'https://wa.me/?text=' + encodeURIComponent(pageTitle + ' - ' + pageUrl);
+
+    const emailBtn = document.getElementById('emailShareBtn');
+    if (emailBtn) emailBtn.href = 'mailto:?subject=' + encodeURIComponent(pageTitle) + '&body=' + encodeURIComponent('Check out this listing: ' + pageUrl);
+
+    const fbBtn = document.getElementById('facebookShareBtn');
+    if (fbBtn) fbBtn.href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(pageUrl);
+
+    const twBtn = document.getElementById('twitterShareBtn');
+    if (twBtn) twBtn.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(pageTitle) + '&url=' + encodeURIComponent(pageUrl);
+})();
+</script>
+{% endblock %}

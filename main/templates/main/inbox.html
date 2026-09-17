@@ -1,0 +1,205 @@
+{% extends "main/header.html" %}
+{% block content %}
+<style>
+    .inbox-shell {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        height: 640px;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 10px 30px rgba(17, 24, 39, 0.05);
+    }
+
+    .inbox-sidebar {
+        border-right: 1px solid #eceef1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .inbox-sidebar-header {
+        padding: 1rem 1.1rem;
+        font-weight: 700;
+        border-bottom: 1px solid #eceef1;
+        position: relative;
+    }
+
+    .sidebar-header-toggle {
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        color: #111827;
+    }
+
+    .inbox-sidebar-header .dropdown-menu {
+        top: 100%;
+        left: 0;
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(17,24,39,0.12);
+        border: 1px solid #eceef1;
+        margin-top: 0.4rem;
+    }
+
+    .sidebar-menu-item {
+        display: flex;
+        align-items: center;
+        padding: 0.55rem 0.9rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #374151;
+        text-decoration: none;
+    }
+
+    .sidebar-menu-item:hover {
+        background: #f9fafb;
+    }
+
+    .sidebar-menu-item.active {
+        background: #eff6ff;
+        color: var(--bs-primary);
+    }
+
+    .unarchive-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6b7280;
+        flex-shrink: 0;
+    }
+
+    .unarchive-btn:hover {
+        background: #eff6ff;
+        color: var(--bs-primary);
+    }
+
+    .inbox-search {
+        padding: 0.8rem 1rem;
+        position: relative;
+        border-bottom: 1px solid #eceef1;
+    }
+
+    .inbox-search i {
+        position: absolute;
+        left: 1.6rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #9ca3af;
+        font-size: 0.85rem;
+    }
+
+    .inbox-search input {
+        width: 100%;
+        border: 1px solid #e5e7eb;
+        border-radius: 100px;
+        padding: 0.4rem 0.8rem 0.4rem 2rem;
+        font-size: 0.85rem;
+        background: #f9fafb;
+    }
+
+    .conversation-list {
+        overflow-y: auto;
+        flex-grow: 1;
+    }
+
+    .conversation-item {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        padding: 0.8rem 1.1rem;
+        text-decoration: none;
+        color: inherit;
+        border-bottom: 1px solid #f5f6f8;
+        position: relative;
+    }
+
+    .conversation-item:hover {
+        background: #f9fafb;
+    }
+
+    .conversation-item.active {
+        background: #eff6ff;
+    }
+
+    .conv-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: conic-gradient(from 200deg, #020617, #1e3a8a, #3b82f6, #0ea5e9, #020617);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.95rem;
+        flex-shrink: 0;
+    }
+
+    .conv-info {
+        min-width: 0;
+        flex-grow: 1;
+    }
+
+    .conv-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.4rem;
+    }
+
+    .conv-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #111827;
+    }
+
+    .conv-time {
+        font-size: 0.72rem;
+        color: #9ca3af;
+        white-space: nowrap;
+    }
+
+    .conv-preview {
+        font-size: 0.82rem;
+        color: #6b7280;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .conv-unread-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--bs-primary);
+        flex-shrink: 0;
+    }
+
+    .inbox-empty-panel {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        color: #9ca3af;
+        height: 100%;
+    }
+
+    .inbox-empty-panel i {
+        font-size: 2.6rem;
+        margin-bottom: 0.8rem;
+        color: #d1d5db;
+    }
+</style>
+
+<div class="inbox-shell">
+    {% include "main/conversation_sidebar.html" %}
+    <div class="inbox-empty-panel">
+        <i class="bi bi-chat-dots"></i>
+        <p>Select a conversation to start chatting.</p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,657 @@
+{% extends "main/header.html" %}
+{% load humanize %}
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+    .mt-wrap {
+        max-width: 1140px;
+        margin: 0 auto;
+    }
+
+    /* ---------- Insights hero band ---------- */
+    .mt-hero {
+        background: radial-gradient(circle at 15% 20%, #1e3a8a 0%, #0f172a 55%, #0b1120 100%);
+        border-radius: 20px;
+        padding: 2rem 2.2rem;
+        margin-bottom: 1.75rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .mt-hero::after {
+        content: "";
+        position: absolute;
+        top: -60px;
+        right: -60px;
+        width: 240px;
+        height: 240px;
+        background: radial-gradient(circle, rgba(96,165,250,0.25) 0%, rgba(96,165,250,0) 70%);
+        pointer-events: none;
+    }
+
+    .mt-hero-eyebrow {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #93c5fd;
+        margin-bottom: 0.4rem;
+    }
+
+    .mt-hero h3 {
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #fff;
+        font-size: 1.6rem;
+        margin-bottom: 0.3rem;
+        position: relative;
+    }
+
+    .mt-hero p {
+        color: #94a3b8;
+        font-size: 0.86rem;
+        margin-bottom: 1.6rem;
+        max-width: 480px;
+        position: relative;
+    }
+
+    .mt-hero-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.75rem;
+        position: relative;
+    }
+
+    .mt-hero-stat {
+        border-left: 2px solid rgba(148, 163, 184, 0.2);
+        padding-left: 1rem;
+    }
+
+    .mt-hero-stat-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+    }
+
+    .mt-hero-stat-label {
+        font-size: 0.74rem;
+        color: #94a3b8;
+        font-weight: 500;
+        margin-top: 0.2rem;
+    }
+
+    .mt-hero-stat-value.accent { color: #60a5fa; }
+
+    @media (max-width: 767px) {
+        .mt-hero-stats { grid-template-columns: 1fr; gap: 1rem; }
+        .mt-hero-stat { border-left: none; border-top: 2px solid rgba(148, 163, 184, 0.2); padding-left: 0; padding-top: 0.7rem; }
+    }
+
+    /* ---------- Layout ---------- */
+    .mt-grid {
+        display: grid;
+        grid-template-columns: 1.6fr 1fr;
+        gap: 1.25rem;
+        margin-bottom: 1.25rem;
+        align-items: stretch;
+    }
+
+    @media (max-width: 900px) {
+        .mt-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ---------- Cards ---------- */
+    .mt-card {
+        background: #fff;
+        border: 1px solid #eceef1;
+        border-radius: 18px;
+        box-shadow: 0 12px 32px rgba(17, 24, 39, 0.05);
+        padding: 1.5rem 1.6rem;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .mt-card-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.7rem;
+        margin-bottom: 1.2rem;
+    }
+
+    .mt-card-title-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+    }
+
+    .mt-card-title {
+        font-weight: 700;
+        font-size: 1.02rem;
+        color: #111827;
+    }
+
+    .mt-card-sub {
+        color: #9ca3af;
+        font-size: 0.79rem;
+        margin-top: 0.15rem;
+    }
+
+    .mt-trend-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        border-radius: 100px;
+        padding: 0.18rem 0.6rem;
+    }
+
+    .mt-trend-badge.up { background: #fef2f2; color: #dc2626; }
+    .mt-trend-badge.down { background: #ecfdf5; color: #059669; }
+    .mt-trend-badge.flat { background: #f3f4f6; color: #6b7280; }
+
+    .mt-ticker-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #111827;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+        margin-bottom: 0.9rem;
+    }
+
+    .mt-city-select {
+        border: 1.5px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.8rem;
+        background: #fafbfc;
+        color: #374151;
+        font-weight: 500;
+    }
+
+    .mt-city-select:focus {
+        outline: none;
+        border-color: var(--bs-primary);
+        background: #fff;
+    }
+
+    #trendChart {
+        flex: 1;
+    }
+
+    /* ---------- Ranked city list ---------- */
+    .mt-rank-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .mt-rank-item {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+    }
+
+    .mt-rank-num {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #f3f4f6;
+        color: #6b7280;
+        font-size: 0.7rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .mt-rank-item:first-child .mt-rank-num {
+        background: #dbeafe;
+        color: #2563eb;
+    }
+
+    .mt-rank-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .mt-rank-top-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.5rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .mt-rank-city {
+        font-weight: 700;
+        font-size: 0.86rem;
+        color: #111827;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mt-rank-price {
+        font-size: 0.76rem;
+        color: #9ca3af;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .mt-rank-bar-track {
+        height: 6px;
+        border-radius: 100px;
+        background: #f3f4f6;
+        overflow: hidden;
+    }
+
+    .mt-rank-bar-fill {
+        height: 100%;
+        border-radius: 100px;
+        background: linear-gradient(90deg, #93c5fd, #2563eb);
+    }
+
+    .mt-rank-meta {
+        font-size: 0.7rem;
+        color: #b0b5bd;
+        margin-top: 0.25rem;
+    }
+
+    /* ---------- Map card ---------- */
+    .mt-legend-inline {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .mt-legend-pill {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #6b7280;
+        background: #fafbfc;
+        border: 1px solid #eceef1;
+        border-radius: 100px;
+        padding: 0.22rem 0.6rem 0.22rem 0.45rem;
+    }
+
+    .mt-legend-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    #heatmapContainer {
+        height: 400px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid #eceef1;
+    }
+
+    .leaflet-popup-content-wrapper {
+        border-radius: 12px;
+        box-shadow: 0 12px 28px rgba(17,24,39,0.18);
+    }
+
+    .leaflet-popup-content {
+        margin: 0.7rem 0.9rem;
+        font-size: 0.83rem;
+    }
+
+    .mt-popup-city {
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 0.3rem;
+    }
+
+    .mt-popup-row {
+        color: #6b7280;
+        font-size: 0.78rem;
+        line-height: 1.5;
+    }
+
+    /* ---------- Empty state ---------- */
+    .mt-empty {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #9ca3af;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .mt-empty i {
+        font-size: 1.8rem;
+        margin-bottom: 0.7rem;
+        color: #d1d5db;
+    }
+
+    .mt-empty-title {
+        font-weight: 600;
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .mt-empty-sub {
+        font-size: 0.78rem;
+        max-width: 260px;
+    }
+</style>
+
+<div class="mt-wrap">
+
+    <div class="mt-hero">
+        <div class="mt-hero-eyebrow">Market Intelligence</div>
+        <h3>Market Trends</h3>
+        <p>Average pricing over time and where buyer demand is concentrated across cities.</p>
+
+        <div class="mt-hero-stats">
+            <div class="mt-hero-stat">
+                <div class="mt-hero-stat-value">{{ total_listings }}</div>
+                <div class="mt-hero-stat-label">Active listings</div>
+            </div>
+            <div class="mt-hero-stat">
+                <div class="mt-hero-stat-value accent">{% if overall_avg_price %}${{ overall_avg_price|floatformat:0|intcomma }}{% else %}&mdash;{% endif %}</div>
+                <div class="mt-hero-stat-label">Average price</div>
+            </div>
+            <div class="mt-hero-stat">
+                <div class="mt-hero-stat-value">{% if top_city %}{{ top_city.city }}{% else %}&mdash;{% endif %}</div>
+                <div class="mt-hero-stat-label">{% if top_city %}Most active &middot; {{ top_city.listing_count }} listings{% else %}Most active city{% endif %}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-grid">
+        <div class="mt-card">
+            <div class="mt-card-head">
+                <div>
+                    <div class="mt-card-title-row">
+                        <span class="mt-card-title">Price Trend</span>
+                        <span id="trendChangeBadge" style="display:none;"></span>
+                    </div>
+                    <div class="mt-card-sub">Monthly average{% if selected_city %} in {{ selected_city }}{% endif %}</div>
+                </div>
+                <form method="get">
+                    <select name="city" class="mt-city-select" onchange="this.form.submit()">
+                        <option value="">All cities</option>
+                        {% for c in cities %}
+                            <option value="{{ c }}" {% if c == selected_city %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+
+            {% if trend_labels_json == "[]" %}
+                <div class="mt-empty">
+                    <i class="bi bi-bar-chart"></i>
+                    <div class="mt-empty-title">Not enough price history yet</div>
+                    <div class="mt-empty-sub">Trends appear once listings have price history spanning more than one month.</div>
+                </div>
+            {% else %}
+                <div class="mt-ticker-value" id="tickerValue">&mdash;</div>
+                <canvas id="trendChart"></canvas>
+            {% endif %}
+        </div>
+
+        <div class="mt-card">
+            <div class="mt-card-head">
+                <div>
+                    <div class="mt-card-title">Top Cities</div>
+                    <div class="mt-card-sub">Ranked by active listings</div>
+                </div>
+            </div>
+
+            {% if heatmap_data_json == "[]" %}
+                <div class="mt-empty">
+                    <i class="bi bi-signpost-split"></i>
+                    <div class="mt-empty-title">No ranked cities yet</div>
+                    <div class="mt-empty-sub">Cities appear once listings are geocoded.</div>
+                </div>
+            {% else %}
+                <div class="mt-rank-list" id="rankList"></div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-card">
+        <div class="mt-card-head">
+            <div>
+                <div class="mt-card-title">Demand Heatmap</div>
+                <div class="mt-card-sub">Listing concentration and interest by city</div>
+            </div>
+            {% if heatmap_data_json != "[]" %}
+            <div class="mt-legend-inline">
+                <div class="mt-legend-pill"><span class="mt-legend-dot" style="background:#60a5fa;"></span> Low</div>
+                <div class="mt-legend-pill"><span class="mt-legend-dot" style="background:#f59e0b;"></span> Moderate</div>
+                <div class="mt-legend-pill"><span class="mt-legend-dot" style="background:#ef4444;"></span> High</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if heatmap_data_json == "[]" %}
+            <div class="mt-empty">
+                <i class="bi bi-map"></i>
+                <div class="mt-empty-title">No geocoded listings yet</div>
+                <div class="mt-empty-sub">Listings need a resolved address to appear on the map.</div>
+            </div>
+        {% else %}
+            <div id="heatmapContainer"></div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+const trendLabels = {{ trend_labels_json|safe }};
+const trendValues = {{ trend_values_json|safe }};
+const trendCounts = {{ trend_counts_json|safe }};
+const heatmapData = {{ heatmap_data_json|safe }};
+
+{% if heatmap_data_json != "[]" %}
+(function () {
+    const list = document.getElementById('rankList');
+    const maxCount = Math.max.apply(null, heatmapData.map(function (c) { return c.listing_count; }));
+
+    heatmapData.slice(0, 6).forEach(function (city, i) {
+        const pct = Math.round((city.listing_count / maxCount) * 100);
+        const row = document.createElement('div');
+        row.className = 'mt-rank-item';
+        row.innerHTML =
+            '<div class="mt-rank-num">' + (i + 1) + '</div>' +
+            '<div class="mt-rank-body">' +
+                '<div class="mt-rank-top-row">' +
+                    '<span class="mt-rank-city">' + city.city + '</span>' +
+                    '<span class="mt-rank-price">$' + Math.round(city.avg_price).toLocaleString() + '</span>' +
+                '</div>' +
+                '<div class="mt-rank-bar-track"><div class="mt-rank-bar-fill" style="width:' + pct + '%;"></div></div>' +
+                '<div class="mt-rank-meta">' + city.listing_count + ' listing' + (city.listing_count === 1 ? '' : 's') + ' &middot; ' + city.total_views + ' views</div>' +
+            '</div>';
+        list.appendChild(row);
+    });
+})();
+{% endif %}
+
+{% if trend_labels_json != "[]" %}
+(function () {
+    const canvas = document.getElementById('trendChart');
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+    gradient.addColorStop(0, 'rgba(37, 99, 235, 0.28)');
+    gradient.addColorStop(0.65, 'rgba(37, 99, 235, 0.04)');
+    gradient.addColorStop(1, 'rgba(37, 99, 235, 0)');
+
+    document.getElementById('tickerValue').textContent =
+        '$' + Math.round(trendValues[trendValues.length - 1]).toLocaleString();
+
+    if (trendValues.length > 1) {
+        const first = trendValues[0];
+        const last = trendValues[trendValues.length - 1];
+        const change = ((last - first) / first) * 100;
+        const badge = document.getElementById('trendChangeBadge');
+        const dir = change > 0.5 ? 'up' : change < -0.5 ? 'down' : 'flat';
+        const icon = dir === 'up' ? 'bi-arrow-up-right' : dir === 'down' ? 'bi-arrow-down-right' : 'bi-dash';
+        badge.className = 'mt-trend-badge ' + dir;
+        badge.innerHTML = '<i class="bi ' + icon + '"></i> ' + Math.abs(change).toFixed(1) + '%';
+        badge.style.display = 'inline-flex';
+    }
+
+    new Chart(ctx, {
+        data: {
+            labels: trendLabels,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Listings',
+                    data: trendCounts,
+                    backgroundColor: '#f1f5f9',
+                    hoverBackgroundColor: '#e2e8f0',
+                    borderRadius: 6,
+                    barPercentage: 0.5,
+                    yAxisID: 'y1',
+                    order: 2,
+                },
+                {
+                    type: 'line',
+                    label: 'Average price',
+                    data: trendValues,
+                    borderColor: '#2563eb',
+                    borderWidth: 2.5,
+                    backgroundColor: gradient,
+                    fill: true,
+                    cubicInterpolationMode: 'monotone',
+                    tension: 0.4,
+                    pointRadius: trendValues.length > 1 ? 3.5 : 6,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#2563eb',
+                    pointBorderWidth: 2.5,
+                    pointHoverRadius: 7,
+                    pointHoverBackgroundColor: '#2563eb',
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 2,
+                    yAxisID: 'y',
+                    order: 1,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 2.3,
+            layout: { padding: { top: 4, right: 4 } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#111827',
+                    padding: 12,
+                    cornerRadius: 10,
+                    displayColors: true,
+                    boxPadding: 4,
+                    titleFont: { size: 12, weight: '600' },
+                    bodyFont: { size: 12.5, weight: '600' },
+                    callbacks: {
+                        label: function (item) {
+                            if (item.dataset.label === 'Average price') {
+                                return '  Avg. price: $' + Math.round(item.parsed.y).toLocaleString();
+                            }
+                            return '  ' + item.parsed.y + ' listing' + (item.parsed.y === 1 ? '' : 's');
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: { color: '#9ca3af', font: { size: 11 } }
+                },
+                y: {
+                    position: 'left',
+                    grid: { color: '#f3f4f6', drawTicks: false },
+                    border: { display: false },
+                    ticks: {
+                        color: '#9ca3af',
+                        font: { size: 11 },
+                        padding: 8,
+                        callback: function (value) { return '$' + Number(value).toLocaleString(); }
+                    }
+                },
+                y1: {
+                    position: 'right',
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: { color: '#cbd5e1', font: { size: 10 }, stepSize: 1, precision: 0 }
+                }
+            }
+        }
+    });
+})();
+{% endif %}
+
+{% if heatmap_data_json != "[]" %}
+(function () {
+    const map = L.map('heatmapContainer', { scrollWheelZoom: false, zoomControl: false });
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const bounds = [];
+
+    function colorFor(views) {
+        if (views >= 200) return '#ef4444';
+        if (views >= 50) return '#f59e0b';
+        return '#60a5fa';
+    }
+
+    function radiusFor(count) {
+        return Math.min(36, 12 + count * 3);
+    }
+
+    heatmapData.forEach(function (city) {
+        if (!city.lat || !city.lng) return;
+        const circle = L.circleMarker([city.lat, city.lng], {
+            radius: radiusFor(city.listing_count),
+            fillColor: colorFor(city.total_views),
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8,
+        }).addTo(map);
+
+        circle.bindPopup(
+            '<div class="mt-popup-city">' + city.city + '</div>' +
+            '<div class="mt-popup-row">' + city.listing_count + ' listing' + (city.listing_count === 1 ? '' : 's') + '</div>' +
+            '<div class="mt-popup-row">' + city.total_views + ' total views</div>' +
+            '<div class="mt-popup-row">Avg. $' + Math.round(city.avg_price).toLocaleString() + '</div>'
+        );
+
+        bounds.push([city.lat, city.lng]);
+    });
+
+    if (bounds.length) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+    } else {
+        map.setView([20, 0], 2);
+    }
+})();
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,534 @@
+{% extends "main/header.html" %}
+{% load humanize %}
+{% block content %}
+<style>
+    .stat-card {
+        border-radius: 14px;
+        transition: transform 0.15s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+    .stat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+    .listings-table tr {
+        border-bottom: 1px solid #f0f1f3;
+    }
+    .listings-table tr:last-child {
+        border-bottom: none;
+    }
+    .listings-table td {
+        padding: 0.9rem 0.6rem;
+        vertical-align: middle;
+    }
+    .icon-btn {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        color: #6b7280;
+        transition: all 0.15s ease;
+    }
+    .icon-btn:hover { background: #f3f4f6; color: #111827; }
+    .icon-btn.text-danger:hover { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+    .icon-btn.text-success:hover { background: #dcfce7; color: #16a34a; border-color: #bbf7d0; }
+    .thumb {
+        width: 56px;
+        height: 44px;
+        object-fit: cover;
+        border-radius: 8px;
+    }
+
+    /* --- Collapsible sections --- */
+    .dash-section {
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid #f0f1f3;
+        box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
+        margin-bottom: 1.25rem;
+    }
+
+    .dash-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.1rem 1.4rem;
+        background: #fff;
+        cursor: pointer;
+        user-select: none;
+        border: none;
+        width: 100%;
+        text-align: left;
+        transition: background 0.15s ease;
+    }
+
+    .dash-section-header:hover {
+        background: #fafbfc;
+    }
+
+    .dash-section-title {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-weight: 700;
+        font-size: 1rem;
+        color: #111827;
+    }
+
+    .dash-section-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        height: 24px;
+        padding: 0 0.4rem;
+        border-radius: 100px;
+        background: #eef2ff;
+        color: #4338ca;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    .dash-section-chevron {
+        transition: transform 0.25s ease;
+        color: #9ca3af;
+        font-size: 1.1rem;
+    }
+
+    .dash-section-header[aria-expanded="true"] .dash-section-chevron {
+        transform: rotate(180deg);
+    }
+
+    .dash-section-body {
+        padding: 0 1.4rem 1.4rem;
+        background: #fff;
+        border-top: 1px solid #f3f4f6;
+        padding-top: 1.4rem;
+    }
+
+    .dash-section-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+    }
+
+    .dash-section-content.open {
+        max-height: 3000px;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-0">Dashboard</h2>
+        <p class="text-muted mb-0">Manage your property listings</p>
+    </div>
+    <a href="{% url 'main:create_listing' %}" class="btn btn-primary rounded-pill px-3">
+        <i class="bi bi-plus-lg me-1"></i> New Listing
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-house-door"></i></div>
+                <div>
+                    <p class="text-muted small mb-0">Total Listings</p>
+                    <h4 class="fw-bold mb-0">{{ total_count }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-eye"></i></div>
+                <div>
+                    <p class="text-muted small mb-0">Active</p>
+                    <h4 class="fw-bold mb-0">{{ active_count }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-tag"></i></div>
+                <div>
+                    <p class="text-muted small mb-0">For Sale</p>
+                    <h4 class="fw-bold mb-0">{{ sale_count }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-key"></i></div>
+                <div>
+                    <p class="text-muted small mb-0">For Rent</p>
+                    <h4 class="fw-bold mb-0">{{ rent_count }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My Listings -->
+<div class="dash-section">
+    <button class="dash-section-header" type="button" data-target="sectionListings" aria-expanded="true" aria-controls="sectionListings">
+        <span class="dash-section-title">
+            <i class="bi bi-house-door text-primary"></i> My Listings
+            <span class="dash-section-count">{{ total_count }}</span>
+        </span>
+        <i class="bi bi-chevron-down dash-section-chevron"></i>
+    </button>
+    <div class="dash-section-content open" id="sectionListings">
+        <div class="dash-section-body">
+            <table class="table listings-table mb-0">
+                <thead>
+                    <tr class="text-muted small">
+                        <th>Property</th>
+                        <th>Type</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for listing in listings %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                {% with listing.images.first as first_image %}
+                                    {% if first_image %}
+                                        <img src="{{ first_image.image.url }}" class="thumb">
+                                    {% else %}
+                                        <div class="thumb bg-light"></div>
+                                    {% endif %}
+                                {% endwith %}
+                                <div>
+                                    <a href="{% url 'main:listing_detail' slug=listing.slug pk=listing.pk %}" class="text-dark fw-semibold text-decoration-none">{{ listing.title }}</a>
+                                    <div class="text-muted small">{{ listing.district }}, {{ listing.city }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ listing.get_listing_type_display }}</td>
+                        <td class="fw-semibold">${{ listing.price|floatformat:0|intcomma }}</td>
+                        <td>
+                            {% if listing.moderation_status == "pending" %}
+                                <span class="badge bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i> Pending Review</span>
+                            {% elif listing.moderation_status == "rejected" %}
+                                <span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-circle"></i> Rejected</span>
+                                {% if listing.moderation_note %}
+                                    <div class="text-muted small mt-1" style="max-width: 220px;">{{ listing.moderation_note }}</div>
+                                {% endif %}
+                            {% elif not listing.is_active %}
+                                <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-circle-fill" style="font-size:6px;"></i> Hidden</span>
+                            {% elif listing.availability == "sold" %}
+                                <span class="badge bg-dark-subtle text-dark"><i class="bi bi-check-circle"></i> Sold</span>
+                            {% elif listing.availability == "rented" %}
+                                <span class="badge bg-info-subtle text-info"><i class="bi bi-key"></i> Rented</span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success"><i class="bi bi-circle-fill" style="font-size:6px;"></i> Active</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">{{ listing.created_at|date:"M d, Y" }}</td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1">
+                                <form method="post" action="{% url 'main:toggle_listing_status' pk=listing.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    {% if listing.is_active %}
+                                        <button type="submit" class="icon-btn" title="Hide listing"><i class="bi bi-eye-slash"></i></button>
+                                    {% else %}
+                                        <button type="submit" class="icon-btn text-success" title="Show listing"><i class="bi bi-eye"></i></button>
+                                    {% endif %}
+                                </form>
+                                <a href="{% url 'main:edit_listing' slug=listing.slug pk=listing.pk %}" class="icon-btn" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <button type="button" class="icon-btn text-danger" title="Delete" data-bs-toggle="modal" data-bs-target="#deleteModal{{ listing.pk }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <div class="modal fade" id="deleteModal{{ listing.pk }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-body p-4 text-center">
+                                    <div class="stat-icon bg-danger-subtle text-danger mx-auto mb-3" style="width:52px;height:52px;font-size:1.4rem;">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                    </div>
+                                    <h5 class="fw-bold mb-2">Delete "{{ listing.title }}"?</h5>
+                                    <p class="text-muted mb-4">This action cannot be undone.</p>
+                                    <form method="post" action="{% url 'main:delete_listing' pk=listing.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger rounded-pill px-4">Yes, delete</button>
+                                        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            You haven't listed any properties yet.<br>
+                            <a href="{% url 'main:create_listing' %}">List your first property</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Appointment Requests Received -->
+<div class="dash-section">
+    <button class="dash-section-header" type="button" data-target="sectionApptReceived" aria-expanded="false" aria-controls="sectionApptReceived">
+        <span class="dash-section-title">
+            <i class="bi bi-calendar-check text-primary"></i> Appointment Requests Received
+            <span class="dash-section-count">{{ received_appointments|length }}</span>
+        </span>
+        <i class="bi bi-chevron-down dash-section-chevron"></i>
+    </button>
+    <div class="dash-section-content" id="sectionApptReceived">
+        <div class="dash-section-body">
+            <div class="row g-3">
+                {% for appt in received_appointments %}
+                    <div class="col-12">
+                        <div class="border rounded-3 p-3 d-flex justify-content-between align-items-start flex-wrap gap-2">
+                            <div>
+                                <a href="{% url 'main:listing_detail' slug=appt.listing.slug pk=appt.listing.pk %}" class="fw-semibold small text-decoration-none">{{ appt.listing.title }}</a>
+                                <div class="text-muted small">
+                                    <i class="bi bi-person"></i> {{ appt.requester.username }}
+                                    &middot; <i class="bi bi-calendar3"></i> {{ appt.requested_date|date:"M d, Y" }}
+                                    &middot; <i class="bi bi-clock"></i> {{ appt.requested_time|time:"H:i" }}
+                                </div>
+                                {% if appt.note %}
+                                    <div class="text-muted small mt-1"><i class="bi bi-chat-left-text"></i> "{{ appt.note }}"</div>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                {% if appt.status == "pending" %}
+                                    <span class="badge bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i> Pending</span>
+                                    <form method="post" action="{% url 'main:approve_appointment' pk=appt.pk %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="icon-btn text-success" title="Approve"><i class="bi bi-check-lg"></i></button>
+                                    </form>
+                                    <form method="post" action="{% url 'main:reject_appointment' pk=appt.pk %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="icon-btn text-danger" title="Reject"><i class="bi bi-x-lg"></i></button>
+                                    </form>
+                                {% elif appt.status == "approved" %}
+                                    <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle"></i> Approved</span>
+                                {% elif appt.status == "rejected" %}
+                                    <span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-circle"></i> Rejected</span>
+                                {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-slash-circle"></i> Cancelled</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12 text-muted small">No appointment requests yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My Appointment Requests -->
+<div class="dash-section">
+    <button class="dash-section-header" type="button" data-target="sectionApptSent" aria-expanded="false" aria-controls="sectionApptSent">
+        <span class="dash-section-title">
+            <i class="bi bi-send-check text-primary"></i> My Appointment Requests
+            <span class="dash-section-count">{{ sent_appointments|length }}</span>
+        </span>
+        <i class="bi bi-chevron-down dash-section-chevron"></i>
+    </button>
+    <div class="dash-section-content" id="sectionApptSent">
+        <div class="dash-section-body">
+            <div class="row g-3">
+                {% for appt in sent_appointments %}
+                    <div class="col-12">
+                        <div class="border rounded-3 p-3 d-flex justify-content-between align-items-start flex-wrap gap-2">
+                            <div>
+                                <a href="{% url 'main:listing_detail' slug=appt.listing.slug pk=appt.listing.pk %}" class="fw-semibold small text-decoration-none">{{ appt.listing.title }}</a>
+                                <div class="text-muted small">
+                                    <i class="bi bi-calendar3"></i> {{ appt.requested_date|date:"M d, Y" }}
+                                    &middot; <i class="bi bi-clock"></i> {{ appt.requested_time|time:"H:i" }}
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                {% if appt.status == "pending" %}
+                                    <span class="badge bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i> Pending</span>
+                                    <form method="post" action="{% url 'main:cancel_appointment' pk=appt.pk %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="icon-btn text-danger" title="Cancel"><i class="bi bi-x-lg"></i></button>
+                                    </form>
+                                {% elif appt.status == "approved" %}
+                                    <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle"></i> Approved</span>
+                                {% elif appt.status == "rejected" %}
+                                    <span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-circle"></i> Rejected</span>
+                                {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-slash-circle"></i> Cancelled</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12 text-muted small">You haven't requested any appointments.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My Favorites -->
+<div class="dash-section">
+    <button class="dash-section-header" type="button" data-target="sectionFavorites" aria-expanded="false" aria-controls="sectionFavorites">
+        <span class="dash-section-title">
+            <i class="bi bi-heart-fill text-danger"></i> My Favorites
+            <span class="dash-section-count">{{ favorite_listings|length }}</span>
+        </span>
+        <i class="bi bi-chevron-down dash-section-chevron"></i>
+    </button>
+    <div class="dash-section-content" id="sectionFavorites">
+        <div class="dash-section-body">
+            <div class="row g-3">
+                {% for listing in favorite_listings %}
+                    <div class="col-md-4">
+                        <a href="{% url 'main:listing_detail' slug=listing.slug pk=listing.pk %}" class="text-decoration-none text-dark">
+                            <div class="d-flex gap-2 align-items-center border rounded-3 p-2">
+                                {% with listing.images.first as first_image %}
+                                    {% if first_image %}
+                                        <img src="{{ first_image.image.url }}" class="rounded" style="width:56px;height:44px;object-fit:cover;">
+                                    {% else %}
+                                        <div class="bg-light rounded" style="width:56px;height:44px;"></div>
+                                    {% endif %}
+                                {% endwith %}
+                                <div class="overflow-hidden">
+                                    <div class="fw-semibold small text-truncate">{{ listing.title }}</div>
+                                    <div class="text-muted small">${{ listing.price|floatformat:0|intcomma }}</div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                {% empty %}
+                    <div class="col-12 text-muted small">You haven't saved any listings yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Saved Searches -->
+<div class="dash-section">
+    <button class="dash-section-header" type="button" data-target="sectionSearches" aria-expanded="false" aria-controls="sectionSearches">
+        <span class="dash-section-title">
+            <i class="bi bi-bookmark-fill text-primary"></i> Saved Searches
+            <span class="dash-section-count">{{ saved_searches|length }}</span>
+        </span>
+        <i class="bi bi-chevron-down dash-section-chevron"></i>
+    </button>
+    <div class="dash-section-content" id="sectionSearches">
+        <div class="dash-section-body">
+            <div class="row g-3">
+                {% for search in saved_searches %}
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center border rounded-3 p-3">
+                            <div class="overflow-hidden">
+                                <div class="fw-semibold small">{{ search.name|default:"Untitled search" }}</div>
+                                <div class="text-muted small">
+                                    {% if search.q %}"{{ search.q }}" &middot; {% endif %}
+                                    {% if search.listing_type %}{{ search.listing_type|title }} &middot; {% endif %}
+                                    {% if search.property_type %}{{ search.property_type|title }} &middot; {% endif %}
+                                    {% if search.city %}{{ search.city }} &middot; {% endif %}
+                                    {% if search.min_price or search.max_price %}${{ search.min_price|default:"0" }}&ndash;${{ search.max_price|default:"any" }} &middot; {% endif %}
+                                    {% if search.rooms %}{{ search.rooms }}+ rooms{% endif %}
+                                </div>
+                            </div>
+                            <div class="d-inline-flex gap-1">
+                                <a href="{% url 'main:toggle_saved_search_alerts' search.pk %}" class="icon-btn" title="{% if search.email_alerts %}Alerts on{% else %}Alerts off{% endif %}">
+                                    <i class="bi {% if search.email_alerts %}bi-bell-fill text-primary{% else %}bi-bell-slash{% endif %}"></i>
+                                </a>
+                                <a href="{% url 'main:delete_saved_search' search.pk %}" class="icon-btn text-danger" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12 text-muted small">You haven't saved any searches yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Listing Reports -->
+<div class="dash-section">
+    <button class="dash-section-header" type="button" data-target="sectionReports" aria-expanded="false" aria-controls="sectionReports">
+        <span class="dash-section-title">
+            <i class="bi bi-flag-fill text-danger"></i> My Reports
+            <span class="dash-section-count">{{ listing_reports|length }}</span>
+        </span>
+        <i class="bi bi-chevron-down dash-section-chevron"></i>
+    </button>
+    <div class="dash-section-content" id="sectionReports">
+        <div class="dash-section-body">
+            <div class="row g-3">
+                {% for report in listing_reports %}
+                    <div class="col-12">
+                        <div class="border rounded-3 p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <a href="{% url 'main:listing_detail' slug=report.listing.slug pk=report.listing.pk %}" class="fw-semibold small text-decoration-none">{{ report.listing.title }}</a>
+                                    <div class="text-muted small">{{ report.created_at|timesince }} ago</div>
+                                </div>
+                                {% if report.ai_verdict == "valid" %}
+                                    <span class="badge bg-danger-subtle text-danger"><i class="bi bi-exclamation-triangle"></i> Action Taken</span>
+                                {% elif report.ai_verdict == "invalid" %}
+                                    <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-x-circle"></i> No Issue Found</span>
+                                {% else %}
+                                    <span class="badge bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i> Reviewing</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted mb-1"><strong>Reason:</strong> {{ report.reason }}</div>
+                            {% if report.ai_notes %}
+                                <div class="small text-muted"><i class="bi bi-stars text-primary"></i> <strong>AI notes:</strong> {{ report.ai_notes }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12 text-muted small">You haven't reported any listings.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.querySelectorAll('.dash-section-header').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        const targetId = btn.getAttribute('data-target');
+        const content = document.getElementById(targetId);
+        const isOpen = content.classList.toggle('open');
+        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+});
+</script>
+{% endblock %}

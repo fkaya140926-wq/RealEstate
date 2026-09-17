@@ -1,0 +1,520 @@
+{% extends "main/header.html" %}
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+    .listings-hero {
+        margin-bottom: 1.75rem;
+    }
+
+    .listings-hero h2 {
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.2rem;
+    }
+
+    .listings-hero .subtitle {
+        color: #6b7280;
+        font-size: 0.92rem;
+    }
+
+    /* --- Filter bar --- */
+    .filter-bar {
+        background: #fff;
+        border: 1px solid #eceef1;
+        border-radius: 18px;
+        padding: 1.25rem 1.4rem;
+        box-shadow: 0 10px 30px rgba(17, 24, 39, 0.05);
+        margin-bottom: 2rem;
+    }
+
+    .filter-field label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #9ca3af;
+        margin-bottom: 0.3rem;
+        display: block;
+    }
+
+    .filter-field .form-select,
+    .filter-field .form-control {
+        border: 1.5px solid #e5e7eb;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        padding: 0.5rem 0.7rem;
+        background: #fafbfc;
+        transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .filter-field .form-select:focus,
+    .filter-field .form-control:focus {
+        border-color: var(--bs-primary);
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .price-range-group {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .price-range-group span {
+        color: #cbd5e1;
+        font-size: 0.8rem;
+    }
+
+    .filter-toggle-box {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 10px;
+        background: #fafbfc;
+        padding: 0.5rem 0.7rem;
+        height: 100%;
+        transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .filter-toggle-box:has(input:checked) {
+        border-color: var(--bs-primary);
+        background: #eff6ff;
+    }
+
+    .filter-toggle-box input {
+        width: 1rem;
+        height: 1rem;
+        margin: 0;
+        cursor: pointer;
+    }
+
+    .filter-toggle-box label {
+        margin: 0;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #374151;
+        text-transform: none;
+        letter-spacing: normal;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .filter-submit-btn {
+        background: var(--bs-primary);
+        border: none;
+        border-radius: 10px;
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.88rem;
+        padding: 0.55rem 1.3rem;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: background 0.15s ease;
+    }
+
+    .filter-submit-btn:hover {
+        background: #1d4ed8;
+        color: #fff;
+    }
+
+    .clear-filters-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.82rem;
+        color: #9ca3af;
+        text-decoration: none;
+        margin-top: 0.9rem;
+    }
+
+    .clear-filters-link:hover {
+        color: #ef4444;
+    }
+
+    .active-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #eef2ff;
+        color: #4338ca;
+        border-radius: 100px;
+        padding: 0.25rem 0.7rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        margin-right: 0.4rem;
+    }
+
+    /* --- Listing cards --- */
+    .listing-card {
+        background: #fff;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid #f0f1f3;
+        box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+        height: 100%;
+    }
+
+    .listing-card:hover {
+        box-shadow: 0 16px 36px rgba(17, 24, 39, 0.1);
+        transform: translateY(-3px);
+    }
+
+    .listing-card-img-wrap {
+        position: relative;
+        height: 190px;
+        overflow: hidden;
+    }
+
+    .listing-card-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.35s ease;
+    }
+
+    .listing-card:hover .listing-card-img {
+        transform: scale(1.06);
+    }
+
+    .listing-card-img-empty {
+        width: 100%;
+        height: 100%;
+        background: #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #b0b5bd;
+        font-size: 0.85rem;
+    }
+
+    .type-pill {
+        position: absolute;
+        top: 0.7rem;
+        left: 0.7rem;
+        background: rgba(17, 24, 39, 0.75);
+        backdrop-filter: blur(4px);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 0.25rem 0.65rem;
+        border-radius: 100px;
+    }
+
+    .listing-card-body {
+        padding: 1rem 1.1rem 1.15rem;
+    }
+
+    .listing-card-title {
+        font-weight: 700;
+        font-size: 1.02rem;
+        margin-bottom: 0.15rem;
+        color: #111827;
+    }
+
+    .listing-card-location {
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-bottom: 0.6rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .listing-card-meta {
+        display: flex;
+        gap: 0.9rem;
+        font-size: 0.78rem;
+        color: #6b7280;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .listing-card-meta span {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .price-tag {
+        font-weight: 800;
+        color: #111827;
+        font-size: 1.15rem;
+    }
+
+    .price-tag small {
+        font-weight: 500;
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+
+    .empty-state {
+        padding: 5rem 0;
+        text-align: center;
+        color: #9ca3af;
+    }
+
+    .empty-state i {
+        font-size: 2.4rem;
+        color: #d1d5db;
+        margin-bottom: 0.8rem;
+        display: block;
+    }
+
+    .empty-state h5 {
+        color: #111827;
+        font-weight: 700;
+    }
+</style>
+
+<div class="listings-hero d-flex justify-content-between align-items-end flex-wrap gap-2">
+    <div>
+        <h2>Browse Listings</h2>
+        <p class="subtitle mb-0">Find your next home from our curated properties.</p>
+    </div>
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-primary btn-sm rounded-pill me-1" id="viewListBtn">
+            <i class="bi bi-list-ul"></i> List
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill" id="viewMapBtn">
+            <i class="bi bi-map"></i> Map
+        </button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <form method="get" id="filterForm" class="row g-3 align-items-end">
+        {% csrf_token %}
+        <div class="col-md-3 filter-field">
+            <label>Search</label>
+            <input type="text" name="q" class="form-control" value="{{ q|default:'' }}" placeholder="Title or description...">
+        </div>
+        <div class="col-md-2 filter-field">
+            <label>Offer Type</label>
+            <select name="listing_type" class="form-select">
+                <option value="">Any</option>
+                <option value="sale" {% if listing_type == "sale" %}selected{% endif %}>For Sale</option>
+                <option value="rent" {% if listing_type == "rent" %}selected{% endif %}>For Rent</option>
+            </select>
+        </div>
+        <div class="col-md-2 filter-field">
+            <label>Property Type</label>
+            <select name="property_type" class="form-select">
+                <option value="">Any</option>
+                <option value="apartment" {% if property_type == "apartment" %}selected{% endif %}>Apartment</option>
+                <option value="house" {% if property_type == "house" %}selected{% endif %}>House</option>
+                <option value="land" {% if property_type == "land" %}selected{% endif %}>Land</option>
+                <option value="office" {% if property_type == "office" %}selected{% endif %}>Office</option>
+            </select>
+        </div>
+        <div class="col-md-2 filter-field">
+            <label>Off-Plan</label>
+            <div class="filter-toggle-box">
+                <input type="checkbox" name="off_plan" value="1" id="offPlanFilter" {% if off_plan %}checked{% endif %}>
+                <label for="offPlanFilter">Off-plan only</label>
+            </div>
+        </div>
+        <div class="col-md-2 filter-field">
+            <label>City</label>
+            <input type="text" name="city" class="form-control" value="{{ city|default:'' }}" placeholder="Any city">
+        </div>
+        <div class="col-md-3 filter-field">
+            <label>Price Range</label>
+            <div class="price-range-group">
+                <input type="number" name="min_price" class="form-control" value="{{ min_price|default:'' }}" placeholder="Min">
+                <span>&ndash;</span>
+                <input type="number" name="max_price" class="form-control" value="{{ max_price|default:'' }}" placeholder="Max">
+            </div>
+        </div>
+        <div class="col-md-1 filter-field">
+            <label>Rooms</label>
+            <input type="number" name="rooms" class="form-control" value="{{ rooms|default:'' }}" placeholder="Any">
+        </div>
+        <div class="col-md-3 filter-field">
+            <label>Area (m&sup2;)</label>
+            <div class="price-range-group">
+                <input type="number" name="min_area" class="form-control" value="{{ min_area|default:'' }}" placeholder="Min">
+                <span>&ndash;</span>
+                <input type="number" name="max_area" class="form-control" value="{{ max_area|default:'' }}" placeholder="Max">
+            </div>
+        </div>
+        <div class="col-md-2 filter-field">
+            <label>Sort by</label>
+            <select name="sort" class="form-select">
+                <option value="newest" {% if sort == "newest" %}selected{% endif %}>Newest</option>
+                <option value="oldest" {% if sort == "oldest" %}selected{% endif %}>Oldest</option>
+                <option value="price_asc" {% if sort == "price_asc" %}selected{% endif %}>Price: Low to High</option>
+                <option value="price_desc" {% if sort == "price_desc" %}selected{% endif %}>Price: High to Low</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="filter-submit-btn w-100 justify-content-center">
+                <i class="bi bi-search"></i> Search
+            </button>
+        </div>
+    </form>
+</div>
+
+<div id="listingResults">
+    {% include "main/listing_results.html" %}
+</div>
+
+<div id="listingMapView" style="display:none;">
+    <div id="listingsMap" style="height:600px;border-radius:16px;border:1px solid #eceef1;"></div>
+</div>
+
+<script>
+(function () {
+    const form = document.getElementById("filterForm");
+    const resultsBox = document.getElementById("listingResults");
+    let debounceTimer;
+
+    function fetchResults(page) {
+        const params = new URLSearchParams(new FormData(form));
+        if (page) params.set("page", page);
+
+        const url = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+
+        fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+            .then(function (res) { return res.text(); })
+            .then(function (html) {
+                resultsBox.innerHTML = html;
+                window.history.replaceState(null, "", url);
+                if (typeof updateMapMarkers === "function") updateMapMarkers();
+                resultsBox.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+    }
+
+    form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        fetchResults();
+    });
+
+    form.querySelectorAll("select").forEach(function (el) {
+        el.addEventListener("change", fetchResults);
+    });
+
+    form.querySelectorAll("input").forEach(function (el) {
+        el.addEventListener("input", function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(fetchResults, 450);
+        });
+    });
+
+    resultsBox.addEventListener("click", function (e) {
+        const saveBtn = e.target.closest("#saveSearchBtn");
+        if (saveBtn) {
+            const params = new URLSearchParams(new FormData(form));
+            fetch("{% url 'main:save_search' %}", {
+                method: "POST",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+                body: params,
+            }).then(function (res) {
+                if (res.ok) {
+                    alert("Search saved!");
+                } else {
+                    alert("Could not save search.");
+                }
+            });
+            return;
+        }
+
+        const clearLink = e.target.closest("#clearFiltersLink");
+        if (clearLink) {
+            e.preventDefault();
+            form.reset();
+            fetchResults();
+            return;
+        }
+
+        const pageLink = e.target.closest(".pagination-link");
+        if (pageLink) {
+            e.preventDefault();
+            fetchResults(pageLink.getAttribute("data-page"));
+        }
+    });
+})();
+
+(function () {
+    const listBtn = document.getElementById("viewListBtn");
+    const mapBtn = document.getElementById("viewMapBtn");
+    const listView = document.getElementById("listingResults");
+    const mapView = document.getElementById("listingMapView");
+    if (!listBtn || !mapBtn) return;
+
+    let map = null;
+    let markersLayer = null;
+
+    function initMapIfNeeded() {
+        if (map) return;
+        map = L.map('listingsMap').setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        markersLayer = L.layerGroup().addTo(map);
+        updateMapMarkers();
+    }
+
+    window.updateMapMarkers = function () {
+        if (!map) return;
+        const dataEl = document.getElementById('mapDataJson');
+        if (!dataEl) return;
+
+        let data = [];
+        try {
+            data = JSON.parse(dataEl.textContent);
+        } catch (e) {
+            data = [];
+        }
+
+        markersLayer.clearLayers();
+
+        if (data.length === 0) return;
+
+        const bounds = [];
+        data.forEach(function (item) {
+            const marker = L.marker([item.lat, item.lng]).addTo(markersLayer);
+            marker.bindPopup(
+                '<div style="min-width:160px;">' +
+                '<div class="fw-semibold small mb-1">' + item.title + '</div>' +
+                '<div class="text-primary fw-bold small mb-1">$' + parseFloat(item.price).toLocaleString() + '</div>' +
+                '<a href="' + item.url + '" class="small">View listing &rarr;</a>' +
+                '</div>'
+            );
+            bounds.push([item.lat, item.lng]);
+        });
+
+        if (bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+        }
+    };
+
+    listBtn.addEventListener("click", function () {
+        listView.style.display = "";
+        mapView.style.display = "none";
+        listBtn.classList.remove("btn-outline-secondary");
+        listBtn.classList.add("btn-primary");
+        mapBtn.classList.remove("btn-primary");
+        mapBtn.classList.add("btn-outline-secondary");
+    });
+
+    mapBtn.addEventListener("click", function () {
+        listView.style.display = "none";
+        mapView.style.display = "";
+        mapBtn.classList.remove("btn-outline-secondary");
+        mapBtn.classList.add("btn-primary");
+        listBtn.classList.remove("btn-primary");
+        listBtn.classList.add("btn-outline-secondary");
+
+        initMapIfNeeded();
+        setTimeout(function () { if (map) map.invalidateSize(); }, 100);
+        updateMapMarkers();
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,79 @@
+<div class="inbox-sidebar">
+    <div class="inbox-sidebar-header dropdown">
+        <span class="sidebar-header-toggle" data-bs-toggle="dropdown">
+            {% if viewing_archive %}Archive{% else %}Messages{% endif %}
+            <i class="bi bi-chevron-down small ms-1"></i>
+        </span>
+        <div class="dropdown-menu p-0" style="min-width: 180px;">
+            <a href="{% url 'main:inbox' %}" class="sidebar-menu-item {% if not viewing_archive %}active{% endif %}">
+                <i class="bi bi-inbox me-2"></i>Messages
+            </a>
+            <a href="{% url 'main:archived_conversations' %}" class="sidebar-menu-item {% if viewing_archive %}active{% endif %}">
+                <i class="bi bi-archive me-2"></i>Archive
+            </a>
+            <a href="{% url 'main:blocked_users' %}" class="sidebar-menu-item">
+                <i class="bi bi-slash-circle me-2"></i>Blocked Users
+            </a>
+        </div>
+    </div>
+    <div class="inbox-search">
+        <i class="bi bi-search"></i>
+        <input type="text" id="conversationSearch" placeholder="Search messages...">
+    </div>
+    <div class="conversation-list" id="conversationList">
+        {% for item in conversations %}
+            <div class="conversation-item {% if active_conversation and item.conversation.pk == active_conversation.pk %}active{% endif %}"
+                 style="cursor:pointer;"
+                 data-href="{% url 'main:conversation_detail' pk=item.conversation.pk %}"
+                 data-search-text="{{ item.other_user.username|lower }} {% if item.last_message %}{{ item.last_message.body|lower }}{% endif %}">
+                <div class="conv-avatar">{{ item.other_user.username|first|upper }}</div>
+                <div class="conv-info">
+                    <div class="conv-top">
+                        <span class="conv-name">{{ item.other_user.username }}</span>
+                        {% if item.last_message %}
+                            <span class="conv-time">{{ item.last_message.created_at|timesince }} ago</span>
+                        {% endif %}
+                    </div>
+                    <div class="conv-preview">
+                        {% if item.last_message %}
+                            {{ item.last_message.body|truncatechars:38 }}
+                        {% else %}
+                            No messages yet
+                        {% endif %}
+                    </div>
+                </div>
+                {% if item.unread_count %}
+                    <span class="conv-unread-dot"></span>
+                {% endif %}
+                {% if viewing_archive %}
+                    <a href="{% url 'main:unarchive_conversation' pk=item.conversation.pk %}" class="unarchive-btn" title="Unarchive" onclick="event.stopPropagation();">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                {% endif %}
+            </div>
+        {% empty %}
+            <div class="text-muted small p-3">No conversations yet.</div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+(function () {
+    const searchInput = document.getElementById("conversationSearch");
+    if (searchInput) {
+        searchInput.addEventListener("input", function () {
+            const query = searchInput.value.trim().toLowerCase();
+            document.querySelectorAll("#conversationList .conversation-item").forEach(function (item) {
+                const text = item.getAttribute("data-search-text") || "";
+                item.style.display = text.includes(query) ? "" : "none";
+            });
+        });
+    }
+
+    document.querySelectorAll("#conversationList .conversation-item[data-href]").forEach(function (item) {
+        item.addEventListener("click", function () {
+            window.location.href = item.getAttribute("data-href");
+        });
+    });
+})();
+</script>
